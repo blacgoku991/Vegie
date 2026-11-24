@@ -62,6 +62,7 @@ function Navigation() {
         <Stack.Screen name="code" />
       </Stack.Protected>
       <Stack.Screen name="join" />
+      <Stack.Screen name="activate" />
     </Stack>
   );
 }

@@ -2,6 +2,9 @@
 
 import type {
   ActivationInfo,
+  ActivationSent,
+  ClientActivation,
+  CreateActivationRequest,
   ActivationLink,
   AuditEvent,
   CallListItem,
@@ -86,6 +89,10 @@ export const api = {
   reinvite: (id: string) => call<ClientInvite>("POST", `/console/customers/${id}/invite`),
   unlink: (id: string) => call("POST", `/console/customers/${id}/unlink`),
   callLog: (params: Record<string, string | number | undefined>) => call<Page<CallListItem>>("GET", `/console/call-log${qs(params)}`),
+  createCustomer: (body: CreateActivationRequest) => call<ActivationSent>("POST", "/console/customers", body),
+  activations: () => call<ClientActivation[]>("GET", "/console/activations"),
+  resendActivation: (id: string) => call<ActivationSent>("POST", `/console/activations/${id}/resend`),
+  cancelActivation: (id: string) => call("DELETE", `/console/activations/${id}`),
   invites: () => call<InviteListItem[]>("GET", "/console/invites"),
   cancelInvite: (id: string) => call("DELETE", `/console/invites/${id}`),
   audit: (params: Record<string, string | number | undefined>) => call<Page<AuditEvent>>("GET", `/console/audit${qs(params)}`),

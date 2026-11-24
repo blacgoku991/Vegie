@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Logo SmartSecure (tracés de assets/logo/smartsecure-icon.svg, viewBox 1024), carré arrondi pour le popup. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:aapt="http://schemas.android.com/aapt"
+  android:width="48dp"
+  android:height="48dp"
+  android:viewportWidth="1024"
+  android:viewportHeight="1024">
+  <path android:pathData="M230,0 H794 A230,230 0 0 1 1024,230 V794 A230,230 0 0 1 794,1024 H230 A230,230 0 0 1 0,794 V230 A230,230 0 0 1 230,0 Z">
+    <aapt:attr name="android:fillColor">
+      <gradient
+        android:startX="0" android:startY="0" android:endX="1024" android:endY="1024"
+        android:type="linear">
+        <item android:offset="0" android:color="#FF6A4DFF" />
+        <item android:offset="0.42" android:color="#FFB23CF5" />
+        <item android:offset="0.85" android:color="#FFFF6A3D" />
+      </gradient>
+    </aapt:attr>
+  </path>
+  <path
+    android:pathData="M512,250 C600,300 680,318 740,322 V520 C740,650 640,740 512,790 C384,740 284,650 284,520 V322 C344,318 424,300 512,250 Z"
+    android:strokeColor="#FFFFFF" android:strokeWidth="58" android:strokeLineCap="round" android:strokeLineJoin="round" />
+  <path
+    android:pathData="M415,522 L488,594 L615,462"
+    android:strokeColor="#FFFFFF" android:strokeWidth="58" android:strokeLineCap="round" android:strokeLineJoin="round" />
+  <path
+    android:fillColor="#FFFFFF"
+    android:pathData="M790,200 Q799,254 852,263 Q799,272 790,326 Q781,272 728,263 Q781,254 790,200 Z" />
+</vector>

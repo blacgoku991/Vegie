@@ -13,7 +13,7 @@ import { one, pool } from "./pool.ts";
 if (isProd) throw new Error("Le jeu de démo ne doit jamais tourner en production.");
 
 await migrate();
-await pool.query(`truncate users, banks, advisors, agencies, activation_tokens, client_invites, client_notes, audit_events, invite_attempts, sessions, push_tokens, user_banks, certified_calls, call_reports,
+await pool.query(`truncate users, banks, advisors, agencies, activation_tokens, client_invites, client_activations, activation_attempts, client_notes, audit_events, invite_attempts, sessions, push_tokens, user_banks, certified_calls, call_reports,
   reported_numbers, mailboxes, alerts, trusted_contacts, oauth_states, domain_intel, otp_codes, jobs restart identity cascade`);
 
 const realBanks: Array<[string, string, string[]]> = [
@@ -240,6 +240,13 @@ await invite(advisor!.id, "+33639980021", "HZ-104620", 4, null, false);
 await invite(advisor!.id, "+33639980019", "HZ-104619", 60 * 3, ids.Denise!, false);
 await invite(advisor!.id, "+33639980022", null, 60 * 48, null, false);
 await invite(admin!.id, "+33639980023", "HZ-104621", 60 * 26, null, true);
+
+// Activation en attente : client fictif qui n’a pas encore appuyé sur le lien du SMS (le lien réel n’est connu de personne).
+await pool.query(
+  `insert into client_activations (bank_id, advisor_id, phone, first_name, customer_ref, token_hash, expires_at, created_at, last_sent_at)
+   values ($1, $2, $3, $4, $5, $6, now() + interval '48 hours', now() - interval '24 hours', now() - interval '24 hours')`,
+  [horizon!.id, advisor!.id, "+33639980031", "Colette", "HZ-104631", sha256(`seed-activation:${randomToken(8)}`)],
+);
 
 const ev = (minAgo: number, actorId: string | null, actorName: string, action: string, type: string | null, targetId: string | null, label: string | null, meta: object = {}) =>
   pool.query(

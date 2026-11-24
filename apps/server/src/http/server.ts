@@ -6,6 +6,7 @@ import { HttpError } from "./context.ts";
 import { adminRoutes } from "./routes-admin.ts";
 import { appRoutes } from "./routes-app.ts";
 import { clientRoutes } from "./routes-clients.ts";
+import { activationRoutes } from "./routes-activations.ts";
 import { consoleRoutes } from "./routes-console.ts";
 import { mailRoutes } from "./routes-mail.ts";
 
@@ -53,5 +54,6 @@ export function buildServer(): FastifyInstance {
   app.register(consoleRoutes, { prefix: "/v1" });
   app.register(adminRoutes, { prefix: "/v1" });
   app.register(clientRoutes, { prefix: "/v1" });
+  app.register(activationRoutes, { prefix: "/v1" });
   return app;
 }

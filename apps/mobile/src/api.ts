@@ -2,6 +2,7 @@ import { callbackDirectory, saveCallbacks } from "./callbacks";
 import Constants from "expo-constants";
 import type {
   AlertDetail,
+  ActivateResponse,
   AlertSummary,
   AuthVerifyResponse,
   Bank,
@@ -93,6 +94,8 @@ const qs = (o: Record<string, string | undefined | null>) => {
 export const api = {
   startAuth: (phone: string) => call<{ ok: true }>("POST", "/auth/start", { phone }),
   verify: (phone: string, code: string) => call<AuthVerifyResponse>("POST", "/auth/verify", { phone, code }),
+  activate: (token: string) => call<ActivateResponse>("POST", "/auth/activate", { token }),
+  activateLink: (token: string) => changeBanks<JoinBankResponse>("POST", "/me/banks/activate", { token }),
   logout: () => call("POST", "/auth/logout"),
   me: () => call<Me>("GET", "/me", undefined, 6000),
   updateMe: (patch: { firstName?: string; settings?: Partial<UserSettings> }) => call<Me>("PATCH", "/me", patch),

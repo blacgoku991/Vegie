@@ -14,12 +14,12 @@ import { useTheme } from "@/ui/ThemeProvider";
 // Sans numéro (ouverture directe, ou redirection par défaut d'expo-router quand on est déconnecté),
 // cet écran n'a pas de sens : on repart de l'accueil.
 export default function Code() {
-  const { phone = "", invite, wait } = useLocalSearchParams<{ phone: string; invite?: string; wait?: string }>();
+  const { phone = "", invite, activate, wait } = useLocalSearchParams<{ phone: string; invite?: string; activate?: string; wait?: string }>();
   if (!phone) return <Redirect href="/welcome" />;
-  return <CodeForm phone={phone} invite={invite} wait={Number(wait) > 0 ? Math.min(Number(wait), RESEND_DELAY) : RESEND_DELAY} />;
+  return <CodeForm phone={phone} invite={invite} activate={activate} wait={Number(wait) > 0 ? Math.min(Number(wait), RESEND_DELAY) : RESEND_DELAY} />;
 }
 
-function CodeForm({ phone, invite, wait: initialWait }: { phone: string; invite?: string; wait: number }) {
+function CodeForm({ phone, invite, activate, wait: initialWait }: { phone: string; invite?: string; activate?: string; wait: number }) {
   const { tones } = useTheme();
   const { signIn } = useAuth();
   const [code, setCode] = useState("");
@@ -34,7 +34,11 @@ function CodeForm({ phone, invite, wait: initialWait }: { phone: string; invite?
     try {
       const { token, user } = await api.verify(phone, code);
       await signIn(token, user);
-      if (invite && /^\d{6}$/.test(invite)) router.dismissTo({ pathname: "/join", params: { code: invite } });
+      if (activate) {
+        // Lien d'activation de la banque : relié seulement si ce compte porte bien le numéro de l'activation.
+        const linked = await api.activateLink(activate).then(() => true, () => false);
+        router.replace(linked ? "/banks" : user.firstName ? "/" : "/name");
+      } else if (invite && /^\d{6}$/.test(invite)) router.dismissTo({ pathname: "/join", params: { code: invite } });
       else router.replace(user.firstName ? "/" : "/name");
     } catch (err) {
       setError((err as Error).message);

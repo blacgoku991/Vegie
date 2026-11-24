@@ -29,13 +29,16 @@ const config: ExpoConfig = {
     },
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
+      // Push silencieux « appel annoncé / terminé » : met à jour l'étiquette de l'écran d'appel app fermée.
+      UIBackgroundModes: ["remote-notification"],
     },
   },
   android: {
     package: BUNDLE_ID,
     adaptiveIcon: { foregroundImage: "./assets/adaptive-icon.png", backgroundImage: "./assets/adaptive-icon-background.png", backgroundColor: "#B23CF5" },
     // ANSWER_PHONE_CALLS : bouton « Raccrocher » pendant un appel non certifié.
-    permissions: ["ANSWER_PHONE_CALLS", "POST_NOTIFICATIONS"],
+    // SYSTEM_ALERT_WINDOW : grand popup par-dessus l'écran d'appel (optionnel, accordé par l'utilisateur).
+    permissions: ["ANSWER_PHONE_CALLS", "POST_NOTIFICATIONS", "SYSTEM_ALERT_WINDOW"],
     blockedPermissions: ["android.permission.READ_CONTACTS", "android.permission.READ_CALL_LOG", "android.permission.READ_SMS"],
   },
   web: { bundler: "metro", output: "single", favicon: "./assets/icon.png" },
@@ -60,6 +63,7 @@ const config: ExpoConfig = {
             appExtensions: [
               { targetName: "VigieMessageFilter", bundleIdentifier: `${BUNDLE_ID}.messagefilter`, entitlements: { "com.apple.developer.associated-domains": [`messagefilter:${apiHost}`] } },
               { targetName: "VigieCallDirectory", bundleIdentifier: `${BUNDLE_ID}.calldirectory`, entitlements: { "com.apple.security.application-groups": [APP_GROUP] } },
+              { targetName: "VigieNotificationService", bundleIdentifier: `${BUNDLE_ID}.notificationservice`, entitlements: { "com.apple.security.application-groups": [APP_GROUP] } },
               { targetName: "VigieShare", bundleIdentifier: `${BUNDLE_ID}.share`, entitlements: { "com.apple.security.application-groups": [APP_GROUP] } },
             ],
           },

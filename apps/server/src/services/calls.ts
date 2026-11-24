@@ -4,6 +4,7 @@ import { many, one, tx } from "../db/pool.ts";
 import { outboundLine } from "./staff.ts";
 import { audit, clientLabel } from "./audit.ts";
 import { pushToUser } from "../lib/push.ts";
+import { enqueue } from "../jobs/queue.ts";
 import { HttpError, notFound, type AdvisorCtx } from "../http/context.ts";
 
 /**
@@ -63,6 +64,29 @@ export async function activeCallFor(userId: string): Promise<CertifiedCall | nul
   return row ? toCall(row) : null;
 }
 
+/**
+ * Push silencieux : l'annonce est terminée, consommée ou refusée, l'étiquette iOS doit disparaître.
+ * Ne bloque JAMAIS l'appelant : le filtrage Android n'attend que ~1 s la réponse de /me/calls/check,
+ * alors qu'un push Expo peut durer 8 s. Envoi en arrière-plan, erreurs ignorées.
+ *
+ * Limite iOS : si ce push n'est pas délivré (app fermée de force, réseau, iOS qui limite les réveils),
+ * l'étiquette « ✓ Certifié … » subsiste dans l'annuaire CallKit jusqu'à la prochaine ouverture de l'app
+ * (resynchronisation au premier plan). D'où l'heure de fin « HH:mm » écrite dans le libellé.
+ */
+export function pushCallEnded(userId: string, callId: string): void {
+  void pushToUser(userId, { data: { type: "certified_call_ended", callId }, channelId: "certified-calls", contentAvailable: true, silent: true }).catch(() => {});
+}
+
+/**
+ * Tâche planifiée à l'échéance de l'annonce (file Postgres) : envoie le push de fin si l'annonce n'a pas
+ * déjà été terminée, refusée ou consommée (ces cas ont déjà envoyé le leur). Idempotente et sans effet de bord en base.
+ */
+export async function expireCallJob(callId: string): Promise<void> {
+  const row = await one<{ user_id: string; status: string; matched_at: Date | null }>("select user_id, status, matched_at from certified_calls where id = $1", [callId]);
+  if (!row || row.matched_at || row.status === "ended" || row.status === "rejected") return;
+  await pushToUser(row.user_id, { data: { type: "certified_call_ended", callId }, channelId: "certified-calls", contentAvailable: true, silent: true });
+}
+
 /** Consomme l'annonce au premier appel concordant. Renvoie false si elle l'était déjà. */
 export async function consumeMatch(userId: string, callId: string): Promise<boolean> {
   const row = await one<{ id: string }>(
@@ -71,6 +95,7 @@ export async function consumeMatch(userId: string, callId: string): Promise<bool
      where id = $1 and user_id = $2 and matched_at is null and status in ('announced','seen') and expires_at > now() returning id`,
     [callId, userId],
   );
+  if (row) pushCallEnded(userId, callId);
   return !!row;
 }
 
@@ -87,6 +112,7 @@ export async function confirmCall(userId: string, callId: string, confirmed: boo
     [callId, userId],
   );
   if (!row) throw notFound("Appel introuvable ou terminé");
+  if (!confirmed) pushCallEnded(userId, callId);
 }
 
 export async function startCall(advisor: AdvisorCtx, input: { userId: string; reason: string; callerNumber: string | null }): Promise<ConsoleCall> {
@@ -114,6 +140,8 @@ export async function startCall(advisor: AdvisorCtx, input: { userId: string; re
     return row!;
   });
   const call = await consoleCall(id, advisor.bankId);
+  // À l'échéance (+5 s de marge), retire l'étiquette iOS si rien d'autre ne l'a fait.
+  await enqueue("call.expired", { callId: id }, { delayMs: CALL_WINDOW_MIN * 60_000 + 5000 }).catch(() => {});
   await audit({ bankId: advisor.bankId, actor: advisor, action: "call.announced", target: { type: "client", id: input.userId, label: await clientLabel(advisor.bankId, input.userId) }, meta: { callId: id } });
 
   // Le conseiller peut composer le numéro une fois son annonce enregistrée.
@@ -133,16 +161,20 @@ export async function startCall(advisor: AdvisorCtx, input: { userId: string; re
     channelId: "certified-calls",
     interruptionLevel: "time-sensitive",
     categoryId: "certified-call",
+    // iOS : réveil de l'app et de la Notification Service Extension pour poser l'étiquette sur l'écran d'appel.
+    contentAvailable: true,
+    mutableContent: true,
   });
   return call;
 }
 
 export async function endCall(callId: string, bankId: string) {
-  const row = await one<{ id: string }>(
-    `update certified_calls set status = 'ended', ended_at = now() where id = $1 and bank_id = $2 and status not in ('ended', 'rejected') returning id`,
+  const row = await one<{ id: string; user_id: string }>(
+    `update certified_calls set status = 'ended', ended_at = now() where id = $1 and bank_id = $2 and status not in ('ended', 'rejected') returning id, user_id`,
     [callId, bankId],
   );
   if (!row) throw notFound("Appel introuvable ou déjà terminé");
+  pushCallEnded(row.user_id, callId);
 }
 
 export async function consoleCall(callId: string, bankId: string): Promise<ConsoleCall> {

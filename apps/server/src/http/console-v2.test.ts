@@ -55,7 +55,7 @@ async function makeUser(tag: string, bankId: string, advisorId: string) {
 before(async () => {
   if (!reachable) return;
   await migrate();
-  bankA = (await pool.query("insert into banks (slug, name, partner, official_numbers) values ($1, 'Banque V2A', true, '{+33199006600}') returning id", [`v2a-${stamp}`])).rows[0].id;
+  bankA = (await pool.query("insert into banks (slug, name, partner, official_numbers) values ($1, 'Banque V2A', true, '{+33199006800}') returning id", [`v2a-${stamp}`])).rows[0].id;
   bankB = (await pool.query("insert into banks (slug, name, partner) values ($1, 'Banque V2B', true) returning id", [`v2b-${stamp}`])).rows[0].id;
   adminA = await makeStaff(bankA, "bank_admin", "v2-admin-a");
   advisorA = await makeStaff(bankA, "advisor", "v2-advisor-a", "+33199006611");
@@ -64,7 +64,7 @@ before(async () => {
   clientA = await makeUser("1", bankA, advisorA.id);
   clientB = await makeUser("2", bankB, adminB.id);
   // Un signalement et un proche du client A : la banque ne doit voir que le signalement.
-  await pool.query("insert into call_reports (user_id, bank_id, number, action) values ($1, $2, '+33199006600', 'hung_up')", [clientA.id, bankA]);
+  await pool.query("insert into call_reports (user_id, bank_id, number, action) values ($1, $2, '+33199006800', 'hung_up')", [clientA.id, bankA]);
   await pool.query("insert into trusted_contacts (user_id, name, phone) values ($1, 'Proche Secret', '+33699999999')", [clientA.id]);
 });
 

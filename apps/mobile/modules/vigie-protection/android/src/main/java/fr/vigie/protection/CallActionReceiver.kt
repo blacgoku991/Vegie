@@ -18,11 +18,17 @@ class CallActionReceiver : BroadcastReceiver() {
 
     /** Raccroche l'appel en cours si l'utilisateur a accordé la permission. */
     @Suppress("DEPRECATION")
+    fun canEndCall(ctx: Context): Boolean =
+      Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+        ContextCompat.checkSelfPermission(ctx, Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED
+
     fun endCall(ctx: Context): Boolean {
       if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
       if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.ANSWER_PHONE_CALLS) != PackageManager.PERMISSION_GRANTED) return false
       return try {
-        ctx.getSystemService(TelecomManager::class.java).endCall()
+        @Suppress("DEPRECATION")
+        val ended = ctx.getSystemService(TelecomManager::class.java).endCall()
+        ended
       } catch (e: Exception) {
         false
       }
@@ -33,6 +39,7 @@ class CallActionReceiver : BroadcastReceiver() {
     if (intent.action != ACTION_END_CALL) return
     if (!endCall(context)) return
     Notifier.cancelCall(context)
+    CallOverlay.dismiss()
     val number = intent.getStringExtra(EXTRA_NUMBER)
     val pending = goAsync()
     Thread {

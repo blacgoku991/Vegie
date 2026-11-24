@@ -64,7 +64,10 @@ class VigieCallScreeningService : CallScreeningService() {
     if (!verificationFailed && check?.optBoolean("certified") == true && call != null && call.optString("callerNumber") == number) {
       store.consumedCallId = call.getString("id")
       allow(details)
-      Notifier.callCertified(this, Store.ExpectedCall(call.getString("id"), number, call.getString("bankName"), call.getString("advisorName"), call.getString("agency"), 0))
+      val certifiedCall = Store.ExpectedCall(call.getString("id"), number, call.getString("bankName"), call.getString("advisorName"), call.getString("agency"), 0, call.optString("reason"))
+      // Vert uniquement ici : numéro validé par le serveur (usage unique, fenêtre de l'annonce).
+      val shown = CallOverlay.show(this, OverlayContent.certified(certifiedCall.advisorName, certifiedCall.bankName, certifiedCall.agency, certifiedCall.reason), number)
+      if (!shown) Notifier.callCertified(this, certifiedCall)
       return
     }
     val announcedElsewhere = expected != null && !exact
@@ -84,7 +87,7 @@ class VigieCallScreeningService : CallScreeningService() {
           allow(details)
           if (!verificationFailed && check == null) Notifier.callUnverifiable(this, bank.bankName)
           else if (!verificationFailed && (announcedElsewhere || call != null)) Notifier.callAnnouncedOtherNumber(this, bank.bankName)
-          else Notifier.callUncertified(this, bank.bankName, number, blocked = false)
+          else if (!CallOverlay.show(this, OverlayContent.uncertifiedBank(bank.bankName, canHangup()), number)) Notifier.callUncertified(this, bank.bankName, number, blocked = false)
         }
       } else {
         allow(details)
@@ -96,7 +99,7 @@ class VigieCallScreeningService : CallScreeningService() {
     val reports = store.reportedNumbers()[number]
     if (reports != null) {
       allow(details)
-      Notifier.callReported(this, number, reports)
+      if (!CallOverlay.show(this, OverlayContent.reported(PhoneUtil.display(number), reports, canHangup()), number)) Notifier.callReported(this, number, reports)
       return
     }
 
@@ -109,6 +112,8 @@ class VigieCallScreeningService : CallScreeningService() {
     allow(details)
     if (announcedElsewhere) Notifier.callAnnouncedOtherNumber(this, expected!!.bankName)
   }
+
+  private fun canHangup(): Boolean = CallActionReceiver.canEndCall(this)
 
   private fun allow(details: Call.Details) {
     respondToCall(details, CallResponse.Builder().build())

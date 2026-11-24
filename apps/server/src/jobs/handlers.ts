@@ -3,9 +3,11 @@ import { log } from "../lib/log.ts";
 import { fetchGraphMessage, renewGraphSubscriptions, subscribeMailbox, syncGraphRecent } from "../mail/graph.ts";
 import { renewGmailWatches, syncGmail, watchGmail } from "../mail/gmail.ts";
 import { superviseImap } from "../mail/imap.ts";
+import { expireCallJob } from "../services/calls.ts";
 import { registerJob } from "./queue.ts";
 
 export function registerHandlers() {
+  registerJob("call.expired", (p: { callId: string }) => expireCallJob(p.callId));
   registerJob("graph.message", (p: { mailboxId: string; messageId: string }) => fetchGraphMessage(p.mailboxId, p.messageId));
   registerJob("graph.subscribe", (p: { mailboxId: string }) => subscribeMailbox(p.mailboxId));
   registerJob("graph.sync", (p: { mailboxId: string }) => syncGraphRecent(p.mailboxId));

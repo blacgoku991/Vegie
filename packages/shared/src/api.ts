@@ -327,6 +327,44 @@ export interface ClientInvite {
   expiresAt: string;
 }
 
+/** Lien d'activation ouvert sans session alors que le numéro a déjà un compte : il faut d'abord se connecter. */
+export interface ActivationRequiresLogin {
+  requiresLogin: true;
+  /** Numéro masqué. */
+  phone: string;
+}
+export type ActivateResponse = AuthVerifyResponse | ActivationRequiresLogin;
+
+export interface CreateActivationRequest {
+  firstName: string;
+  phone: string;
+  customerRef?: string | null;
+}
+
+export type ActivationStatus = "pending" | "expired";
+
+/** Activation en attente : le client n'a pas encore appuyé sur le lien reçu par SMS. */
+export interface ClientActivation {
+  id: string;
+  status: ActivationStatus;
+  firstName: string;
+  /** Partiellement masqué pour un conseiller. */
+  phone: string;
+  customerRef: string | null;
+  advisorName: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface ActivationSent {
+  activation: ClientActivation;
+  /** « 06 39 •• •• 12 » : numéro auquel le SMS est parti. */
+  maskedPhone: string;
+  /** Hors production uniquement : lien profond (QR code) et lien web. Jamais renvoyés en production. */
+  link?: string;
+  webLink?: string;
+}
+
 export interface JoinBankResponse {
   bank: Bank;
   status: BankLinkStatus;

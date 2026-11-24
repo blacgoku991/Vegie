@@ -31,6 +31,13 @@ class Store(context: Context) {
     get() = prefs.getString("expectedCall", null)
     set(v) = prefs.edit().putString("expectedCall", v).apply()
 
+  /** Efface l'annonce mémorisée seulement si c'est bien celle de [callId] (un push de fin tardif ne retire pas une annonce plus récente). */
+  fun clearExpectedCall(callId: String) {
+    val json = expectedCallJson ?: return
+    val id = try { JSONObject(json).optString("id") } catch (e: Exception) { "" }
+    if (id == callId) expectedCallJson = null
+  }
+
   /** Annonce déjà utilisée par un appel correspondant : elle ne valide plus aucun autre appel, même si l'app la renvoie. */
   var consumedCallId: String?
     get() = prefs.getString("consumedCallId", null)
@@ -45,6 +52,8 @@ class Store(context: Context) {
     val advisorName: String,
     val agency: String,
     val expiresAtMs: Long,
+    /** Motif déclaré par le conseiller ; seulement connu via la réponse authentifiée du serveur. */
+    val reason: String = "",
   )
 
   /** Numéros officiels des banques de l'utilisateur, indexés par numéro E.164. */

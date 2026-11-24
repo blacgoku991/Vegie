@@ -10,7 +10,16 @@ import { space } from "@/ui/theme";
 /** Bienvenue : le logo, une phrase, trois raisons, un bouton. */
 export default function Welcome() {
   return (
-    <Screen footer={<Button label="Commencer" onPress={() => router.push("/login")} />}>
+    <Screen
+      footer={
+        <View style={{ gap: space.sm }}>
+          <Button label="Commencer" onPress={() => router.push("/login")} />
+          <Text variant="caption" color="faint" align="center">
+            J’ai reçu un SMS de ma banque : appuyez simplement sur le lien du SMS, votre compte s’active tout seul.
+          </Text>
+        </View>
+      }
+    >
       <FadeIn style={{ alignItems: "center", marginTop: space.xxl, gap: space.md }}>
         <Logo size={72} />
         <View style={{ alignItems: "center", gap: 6 }}>

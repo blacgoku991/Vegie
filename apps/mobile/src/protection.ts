@@ -7,6 +7,7 @@ import type { CertifiedCall, PhoneDirectory } from "@vigie/shared";
  * - Android : filtrage d'appels (CallScreeningService), lecture des notifications SMS/WhatsApp
  *   (NotificationListenerService), raccrochage.
  * - iOS : annuaire d'appels (Call Directory), filtre SMS et extension Partager via App Group.
+ *   L'annonce d'un appel est écrite dans l'App Group : le numéro annoncé est étiqueté « ✓ Certifié … » sur l'écran d'appel.
  * Sur le web (aperçu) ou si le module manque, tout est inactif.
  */
 type FeatureState = "enabled" | "disabled" | "unknown" | "unsupported";
@@ -16,6 +17,8 @@ export interface ProtectionStatus {
   notificationListener: FeatureState;
   callDirectory: FeatureState;
   canEndCall: boolean;
+  /** Android : popup par-dessus l'appel (permission « Afficher par-dessus les autres applis »). */
+  overlay: FeatureState;
 }
 
 interface NativeModule {
@@ -28,11 +31,16 @@ interface NativeModule {
   openNotificationListenerSettings(): void;
   openCallDirectorySettings(): Promise<void>;
   endCall(): Promise<boolean>;
+  requestOverlay(): void;
+  /** Retire l'annonce mémorisée seulement si son identifiant est `callId`. */
+  clearExpectedCall?(callId: string): void;
+  /** iOS : retire une annonce expirée de l'App Group et recharge l'annuaire. */
+  refreshExpectedCall?(): void;
 }
 
 const Native = requireOptionalNativeModule<NativeModule>("VigieProtection");
 
-const unsupported: ProtectionStatus = { callScreening: "unsupported", notificationListener: "unsupported", callDirectory: "unsupported", canEndCall: false };
+const unsupported: ProtectionStatus = { callScreening: "unsupported", notificationListener: "unsupported", callDirectory: "unsupported", canEndCall: false, overlay: "unsupported" };
 
 export const protection = {
   available: !!Native,
@@ -48,9 +56,35 @@ export const protection = {
     await Native?.syncDirectory(JSON.stringify(dir));
   },
 
-  /** Appel annoncé par la banque : le filtrage Android saura quelle ligne faire vérifier par le serveur. */
+  /**
+   * Appel annoncé par la banque. Android : le filtrage saura quelle ligne faire vérifier par le serveur.
+   * iOS : le numéro annoncé est étiqueté temporairement sur l'écran d'appel. `null` retire l'annonce.
+   */
   setExpectedCall(call: Pick<CertifiedCall, "id" | "callerNumber" | "bankName" | "advisorName" | "agency" | "expiresAt"> | null) {
     Native?.setExpectedCall(call ? JSON.stringify(call) : null);
+  },
+
+  /** Fin d'annonce : ne retire que l'annonce mémorisée portant cet identifiant (un push de fin tardif n'efface pas la suivante). */
+  clearExpectedCall(callId: string) {
+    try {
+      Native?.clearExpectedCall?.(callId);
+    } catch {
+      // Module natif ancien : sans effet.
+    }
+  },
+
+  /** iOS : au premier plan, retire l'étiquette « certifié » d'une annonce expirée. */
+  refreshExpectedCall() {
+    try {
+      Native?.refreshExpectedCall?.();
+    } catch {
+      // Module natif ancien : sans effet.
+    }
+  },
+
+  /** Android : ouvre l'écran système « Afficher par-dessus les autres applis ». */
+  requestOverlay() {
+    if (Platform.OS === "android") Native?.requestOverlay?.();
   },
 
   setAutoHangup(enabled: boolean) {

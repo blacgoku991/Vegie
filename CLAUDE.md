@@ -131,6 +131,15 @@ cd apps/mobile && npx expo export -p web   # aperçu web de l'app (dev uniquemen
   (5 essais / 15 min, réponse identique si inconnu/expiré) → lien `certified` direct. Annonce d'appel : ligne directe obligatoire, jamais un numéro officiel public (`caller_number_required`).
 - **Console v2** : barre latérale par rôle (Tableau de bord, Clients, Appels, Invitations, Signalements, Activité ; Administration : Équipe, Agences, Numéros officiels, Journal d'activité). Fiche client `/clients/[id]` (Aperçu, Appels, Signalements, Notes, Journal) servie par `/console/customers/*` (`routes-clients.ts`) : 404 hors banque, téléphone masqué pour un conseiller, dissocier réservé au responsable (le lien repasse en « basic »). RGPD : la banque ne voit que le lien, ses appels, ses signalements et ses notes (`client_notes`), jamais alertes, proches ni autres banques.
 - **Journal d'activité** : table `audit_events` (migration 005), alimentée par `services/audit.ts` dans les routes (connexion, annonce, invitation, lien, notes, équipe, réglages) ; métadonnées non sensibles (jamais de téléphone ni de code). `user_banks.referent_id` = conseiller référent. Invitation annulable (`cancelled_at`), annonce d'appel déplacée sur `/announce`.
+- **Pendant l'appel, app fermée** (24/11, codé, NON compilé ni testé sur téléphone) : Android = grand popup par-dessus l'écran
+  d'appel (`CallOverlay.kt`, permission « Afficher par-dessus les autres applis », sinon notification) ; vert seulement si le
+  serveur confirme la ligne annoncée. iPhone = étiquette temporaire dans l'annuaire d'appels (« ✓ Certifié <Banque> · HH:mm »,
+  `expected.json` dans l'App Group, extension de notification + tâche d'arrière-plan + push de fin, y compris à l'échéance).
+  Apple interdit tout popup sur un appel normal ; le propriétaire a refusé l'appel VoIP dans l'app. Maquettes :
+  `docs/design/maquettes/appel-*.png`. À vérifier sur vrais appareils : mise à jour iOS quand l'app est fermée de force.
+- **Liaison client = lien d’activation** : la banque crée le client (prénom, portable, référence) dans la console (`POST /v1/console/customers`) et le serveur envoie un SMS avec `smartsecure://activate?token=` (forme web `PUBLIC_APP_URL/activate`). Jeton 32 octets haché, 72 h, usage unique, consommé atomiquement ; `POST /v1/auth/activate` crée ou réutilise le compte, relie la banque en `certified` et ouvre la session, sans code SMS (le lien reçu prouve le numéro) UNIQUEMENT si aucun compte n’existe pour ce numéro ; sinon réponse `requiresLogin`, jeton non consommé, et `POST /v1/me/banks/activate` (connecté, même numéro exact) relie la banque. 400 identique si jeton inconnu/expiré/annulé/utilisé, 20 échecs/h par IP, 30 créations/jour par conseiller.
+- L’API ne renvoie le lien que si `EXPOSE_ACTIVATION_LINK=true` (développement ; le serveur refuse de démarrer si le drapeau est vrai en production) ; sinon seul le SMS le porte. La console l’affiche avec un QR et un bouton Copier. Renvoyer = nouveau jeton (l’ancien meurt), annuler possible ; journal d’audit sans numéro ni jeton.
+- Le code à 6 chiffres (invitation) reste disponible en secours (`/invites`), sans changement. Pas de liaison automatique par import de numéros.
 - **Numéros officiels des banques** : jamais inventés ; fournis par les banques partenaires (table `banks`).
 
 ## Sécurité & RGPD
@@ -144,6 +153,7 @@ cd apps/mobile && npx expo export -p web   # aperçu web de l'app (dev uniquemen
 
 ## Limites connues / dettes
 
+- `trustProxy: true` rend `req.ip` falsifiable si l’API est joignable sans proxy : en production, appliquer les limites par IP au proxy.
 - Pas de limitation de débit par IP sur `/auth/start` (seulement 45 s par numéro et 5 essais par code) : ajouter un
   rate-limit au niveau du proxy ou de Fastify avant la production.
 - `ILMessageFilterExtensionNetworkURL` codé en dur (`api.vigie.example`) dans `targets/VigieMessageFilter/Info.plist`.

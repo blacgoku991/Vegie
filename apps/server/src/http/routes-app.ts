@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { normalizePhone } from "@vigie/shared";
 import type {
+  ActivateResponse,
   AlertSummary,
   AuthVerifyResponse,
   Bank,
@@ -22,6 +23,7 @@ import { otpCode, sha256 } from "../lib/crypto.ts";
 import { sendSms } from "../lib/sms.ts";
 import { analyze } from "../analysis/analyze.ts";
 import { alertColumns, processMessage, toDetail, toSummary } from "../services/alerts.ts";
+import { consumeActivation, linkActivation } from "../services/activations.ts";
 import { audit, clientLabel } from "../services/audit.ts";
 import { activeCallFor, confirmCall, consumeMatch, markSeen } from "../services/calls.ts";
 import { HttpError, createSession, destroySession, notFound, requireUser } from "./context.ts";
@@ -88,6 +90,14 @@ export async function appRoutes(app: FastifyInstance) {
     );
     const token = await createSession("user", user!.id, 365);
     return { token, user: await loadMe(user!.id) };
+  });
+
+  /** Activation par le lien reçu par SMS : arriver sur le lien prouve la possession du numéro (jeton à usage unique, 72 h). */
+  app.post("/auth/activate", async (req): Promise<ActivateResponse> => {
+    const { token } = z.object({ token: z.string().min(1).max(200) }).parse(req.body);
+    const out = await consumeActivation(token, req.ip);
+    if ("requiresLogin" in out) return out;
+    return { token: out.session, user: await loadMe(out.userId) };
   });
 
   app.post("/auth/logout", async (req) => {
@@ -278,6 +288,15 @@ export async function appRoutes(app: FastifyInstance) {
     });
   });
 
+  /** Lien d'activation ouvert par un client déjà connecté : relie la banque si le numéro du compte est exactement celui de l'activation. */
+  app.post("/me/banks/activate", async (req): Promise<JoinBankResponse> => {
+    const userId = await requireUser(req);
+    const { token } = z.object({ token: z.string().min(1).max(200) }).parse(req.body);
+    const bankId = await linkActivation(userId, token, req.ip);
+    const bank = await one<BankRow>("select id, slug, name, partner, official_phone from banks where id = $1", [bankId]);
+    return { bank: toBank(bank!), status: "certified" };
+  });
+
   app.delete<{ Params: { bankId: string } }>("/me/banks/:bankId", async (req) => {
     const userId = await requireUser(req);
     await tx(async db => {
@@ -350,7 +369,7 @@ export async function appRoutes(app: FastifyInstance) {
     if (body.certifiedCallId && !await one("select 1 from certified_calls where user_id = $1 and id = $2 and ($3::uuid is null or bank_id = $3)", [userId, body.certifiedCallId, body.bankId ?? null])) throw notFound("Annonce introuvable");
     const bankId =
       body.bankId ??
-      (number ? (await one<{ id: string }>("select id from banks where $1 = any(official_numbers) or $1 = official_phone limit 1", [number]))?.id : null) ??
+      (number ? (await one<{ id: string }>("select b.id from banks b join user_banks ub on ub.bank_id = b.id and ub.user_id = $2 where $1 = any(b.official_numbers) or $1 = b.official_phone limit 1", [number, userId]))?.id : null) ??
       null;
     await pool.query(
       "insert into call_reports (user_id, bank_id, number, action, certified_call_id) values ($1, $2, $3, $4, $5)",

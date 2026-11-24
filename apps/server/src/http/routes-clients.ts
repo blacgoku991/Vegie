@@ -12,6 +12,7 @@ import type {
   InviteListItem, InviteStatus, Page,
 } from "@vigie/shared";
 import { many, one, tx } from "../db/pool.ts";
+import { escapeLike } from "../lib/like.ts";
 import { phoneFor } from "../lib/phone-mask.ts";
 import { audit, clientLabel } from "../services/audit.ts";
 import { createInvite } from "../services/invites.ts";
@@ -226,7 +227,7 @@ export async function clientRoutes(app: FastifyInstance) {
     if (q.agencyId) f.add("r.agency_id = $?", q.agencyId);
     if (q.q && q.q.length >= 2) {
       const digits = q.q.replace(/\D/g, "");
-      f.add(`(u.first_name ilike $? or ub.customer_ref ilike $? or ($? <> '' and u.phone like $?))`, `%${q.q.replace(/[%_]/g, "")}%`, `${q.q.replace(/[%_]/g, "")}%`, digits.length >= 4 ? "x" : "", `%${digits.slice(-6)}`);
+      f.add(`(u.first_name ilike $? or ub.customer_ref ilike $? or ($? <> '' and u.phone like $?))`, `%${escapeLike(q.q)}%`, `${escapeLike(q.q)}%`, digits.length >= 4 ? "x" : "", `%${digits.slice(-6)}`);
     }
     const dir = q.dir === "desc" ? "desc" : "asc";
     const order = { name: `lower(u.first_name) ${dir} nulls last`, last_call: `last_call_at ${dir} nulls last`, linked: `ub.linked_at ${dir} nulls last` }[q.sort];
@@ -355,7 +356,7 @@ export async function clientRoutes(app: FastifyInstance) {
     if (q.agencyId) f.add("a.agency_id = $?", q.agencyId);
     if (q.from) f.add("c.created_at >= $?::date", q.from);
     if (q.to) f.add("c.created_at < ($?::date + 1)", q.to);
-    if (q.q && q.q.length >= 2) f.add("(u.first_name ilike $? or c.reason ilike $?)", `%${q.q.replace(/[%_]/g, "")}%`, `%${q.q.replace(/[%_]/g, "")}%`);
+    if (q.q && q.q.length >= 2) f.add("(u.first_name ilike $? or c.reason ilike $?)", `%${escapeLike(q.q)}%`, `%${escapeLike(q.q)}%`);
     const r = await queryCalls(f, staff.role, q.pageSize, (q.page - 1) * q.pageSize);
     return { ...r, page: q.page, pageSize: q.pageSize };
   });
@@ -417,7 +418,7 @@ export async function clientRoutes(app: FastifyInstance) {
     if (q.actorId) f.add("actor_id = $?", q.actorId);
     if (q.from) f.add("created_at >= $?::date", q.from);
     if (q.to) f.add("created_at < ($?::date + 1)", q.to);
-    if (q.q && q.q.length >= 2) f.add("(actor_name ilike $? or target_label ilike $?)", `%${q.q.replace(/[%_]/g, "")}%`, `%${q.q.replace(/[%_]/g, "")}%`);
+    if (q.q && q.q.length >= 2) f.add("(actor_name ilike $? or target_label ilike $?)", `%${escapeLike(q.q)}%`, `%${escapeLike(q.q)}%`);
     const rows = await many<AuditRow>(`${auditCols} where bank_id = $1${f.where} order by created_at desc, id desc limit ${q.pageSize} offset ${(q.page - 1) * q.pageSize}`, f.params);
     return { items: rows.map(toAudit), total: rows[0]?.total ?? 0, page: q.page, pageSize: q.pageSize };
   });

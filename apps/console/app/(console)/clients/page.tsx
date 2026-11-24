@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Agency, ClientListItem, Page } from "@vigie/shared";
+import type { Agency, ClientActivation, ClientListItem, Page } from "@vigie/shared";
 import { api } from "@/lib/api";
 import { useAdvisor } from "@/components/advisor";
+import { NewClient, PendingActivations } from "@/components/activations";
 import { Avatar, Icon, LinkBadge, Pager, ago, shortDateFr } from "@/components/ui";
 
 const PAGE_SIZE = 15;
@@ -22,6 +23,11 @@ export default function ClientsPage() {
   const [data, setData] = useState<Page<ClientListItem> | null>(null);
   const [agencies, setAgencies] = useState<Agency[]>([]);
   const [error, setError] = useState("");
+  const [pending, setPending] = useState<ClientActivation[]>([]);
+  const loadPending = useCallback(() => api.activations().then(setPending).catch(() => undefined), []);
+  useEffect(() => {
+    if (advisor && advisor.role !== "superadmin") void loadPending();
+  }, [advisor, loadPending]);
 
   useEffect(() => {
     if (advisor && advisor.role !== "superadmin") api.agencies().then(setAgencies).catch(() => undefined);
@@ -50,8 +56,14 @@ export default function ClientsPage() {
           <h1>Clients</h1>
           <p className="sub">Les clients qui ont relié leur compte SmartSecure à {advisor?.bankName ?? "votre banque"}.</p>
         </div>
-        <Link href="/invites?new=1" className="btn big"><Icon name="plus" size={16} /> Inviter un client</Link>
       </header>
+
+      <section className="card flat stack" style={{ alignItems: "flex-start" }}>
+        <NewClient onCreated={() => void loadPending()} />
+        <Link href="/invites?new=1" className="faint">Pas de SMS possible ? Donner un code à saisir (secours)</Link>
+      </section>
+
+      <PendingActivations items={pending} onChange={() => void loadPending()} />
 
       <section className="section">
         <div className="toolbar" role="search">

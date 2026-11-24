@@ -17,6 +17,8 @@ const schema = z.object({
   APP_SCHEME: z.string().default("vigie"),
   /** Schéma du lien d'invitation client (QR code de la console). */
   INVITE_SCHEME: z.string().default("smartsecure"),
+  /** URL publique de l'app (lien web d'activation ; futur lien universel). */
+  PUBLIC_APP_URL: z.string().default("http://localhost:8081"),
   /** URL publique de la console (liens d'activation de compte). */
   CONSOLE_URL: z.string().default("http://localhost:3000"),
   /** Clé AES-256 en base64 (32 octets) pour chiffrer les secrets des boîtes mail. */
@@ -58,6 +60,9 @@ const schema = z.object({
   // Notifications push
   EXPO_ACCESS_TOKEN: z.string().optional(),
 
+  /** Développement uniquement : renvoie le lien d'activation client dans les réponses de l'API (QR en console). Interdit en production. */
+  EXPOSE_ACTIVATION_LINK: bool,
+
   /** Code OTP fixe, accepté uniquement hors production (démos, tests). */
   DEV_FIXED_OTP: z.string().optional(),
 });
@@ -71,5 +76,6 @@ export const isProd = config.NODE_ENV === "production";
 if (isProd) {
   const missing = (["ENCRYPTION_KEY", "PUBLIC_URL"] as const).filter((k) => !config[k]);
   if (missing.length) throw new Error(`Variables d'environnement manquantes : ${missing.join(", ")}`);
+  if (config.EXPOSE_ACTIVATION_LINK) throw new Error("EXPOSE_ACTIVATION_LINK est interdit en production");
   if (config.DEV_FIXED_OTP) throw new Error("DEV_FIXED_OTP est interdit en production");
 }

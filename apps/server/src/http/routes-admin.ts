@@ -245,6 +245,9 @@ export async function adminRoutes(app: FastifyInstance) {
   app.patch("/console/bank", async (req): Promise<BankSettings> => {
     const admin = await requireBankAdmin(req);
     const body = z.object({ officialPhone: z.string().nullish(), officialNumbers: numbers.optional() }).parse(req.body);
+    const declared = [...(body.officialNumbers ?? []), parseNumber(body.officialPhone)].filter((n): n is string => !!n);
+    if (declared.length && await one("select 1 from banks where id <> $1 and (official_phone = any($2::text[]) or official_numbers && $2::text[])", [admin.bankId, declared]))
+      throw new HttpError(409, "number_taken", "Un de ces numéros est déjà déclaré par une autre banque. Contactez SmartSecure si c'est une erreur.");
     await pool.query(`update banks set official_phone = case when $2 then $3 else official_phone end,
        official_numbers = coalesce($4::text[], official_numbers) where id = $1`,
       [admin.bankId, body.officialPhone !== undefined, parseNumber(body.officialPhone), body.officialNumbers ?? null]);
@@ -273,6 +276,8 @@ export async function adminRoutes(app: FastifyInstance) {
         admin: z.object({ name: z.string().trim().min(2).max(80), email: emailSchema }),
       })
       .parse(req.body);
+    if (body.officialNumbers.length && await one("select 1 from banks where official_phone = any($1::text[]) or official_numbers && $1::text[]", [body.officialNumbers]))
+      throw new HttpError(409, "number_taken", "Un de ces numéros est déjà déclaré par une autre banque.");
     if (await one("select 1 from banks where slug = $1", [body.slug])) throw new HttpError(409, "slug_taken", "Cet identifiant de banque existe déjà.");
     if (await one("select 1 from advisors where email = $1", [body.admin.email])) throw new HttpError(409, "email_taken", "Impossible de créer ce compte avec cet e-mail.");
     return tx(async db => {

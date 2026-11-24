@@ -59,6 +59,14 @@ export default function Protections() {
               />
             ) : null}
             <Feature
+              icon="phone"
+              title="Grand message pendant l'appel"
+              text="Un grand message par-dessus l'écran d'appel dit si l'appel est certifié ou non, même application fermée. Sans cette autorisation, vous recevez une simple notification."
+              enabled={status?.overlay === "enabled"}
+              steps="Réglages › Apps › SmartSecure › Afficher par-dessus les autres applis"
+              action={<Button label="Activer" onPress={() => protection.requestOverlay()} />}
+            />
+            <Feature
               icon="message"
               title="Surveiller SMS et WhatsApp"
               text="Avec votre accord, le nom de l’expéditeur et le texte des notifications contenant un lien, un numéro ou une demande sensible sont envoyés au serveur pour analyse."
@@ -73,7 +81,7 @@ export default function Protections() {
             <Feature
               icon="phone"
               title="Identifier les appels"
-              text="Les numéros signalés comme arnaques s'affichent avec un avertissement quand ils vous appellent."
+              text="Les numéros signalés comme arnaques s'affichent avec un avertissement quand ils vous appellent. Quand votre banque vous appelle depuis la ligne annoncée, le résultat s'affiche sous le numéro, sur l'écran d'appel."
               enabled={status?.callDirectory === "enabled"}
               steps="Réglages › Apps › Téléphone › Blocage et identification des appels › SmartSecure"
               action={<Button label="Ouvrir les réglages" onPress={() => void protection.openCallSettings()} />}

@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { InviteListItem, InviteStatus } from "@vigie/shared";
+import type { ClientActivation, InviteListItem, InviteStatus } from "@vigie/shared";
 import { api } from "@/lib/api";
 import { useAdvisor } from "@/components/advisor";
 import { InviteClient } from "@/components/invite";
+import { NewClient, PendingActivations } from "@/components/activations";
 import { InviteBadge, dateFr } from "@/components/ui";
 
 const filters: Array<{ id: InviteStatus | ""; label: string }> = [
@@ -21,6 +22,8 @@ export default function InvitesPage() {
   const [filter, setFilter] = useState<InviteStatus | "">("");
   const [error, setError] = useState("");
   const [openForm, setOpenForm] = useState(false);
+  const [pending, setPending] = useState<ClientActivation[]>([]);
+  const loadPending = useCallback(() => api.activations().then(setPending).catch(() => undefined), []);
 
   const load = useCallback(() => api.invites().then((l) => { setInvites(l); setError(""); }).catch((e: Error) => setError(e.message)), []);
   useEffect(() => {
@@ -29,9 +32,10 @@ export default function InvitesPage() {
   useEffect(() => {
     if (!advisor || advisor.role === "superadmin") return;
     void load();
-    const t = setInterval(load, 20000);
+    void loadPending();
+    const t = setInterval(() => { void load(); void loadPending(); }, 20000);
     return () => clearInterval(t);
-  }, [advisor, load]);
+  }, [advisor, load, loadPending]);
 
   const cancel = async (i: InviteListItem) => {
     setError("");
@@ -50,6 +54,12 @@ export default function InvitesPage() {
           <p className="sub">{isAdmin ? "Les codes de liaison créés par l’équipe, sur les 30 derniers jours." : "Vos codes de liaison, sur les 30 derniers jours."} Un code reste valable quinze minutes et ne sert qu’une fois.</p>
         </div>
       </header>
+
+      <section className="card flat stack" style={{ alignItems: "flex-start" }}>
+        <NewClient onCreated={() => void loadPending()} />
+      </section>
+
+      <PendingActivations items={pending} onChange={() => void loadPending()} />
 
       <section className="card flat stack" style={{ alignItems: "flex-start" }} key={String(openForm)}>
         <InviteClient defaultOpen={openForm} onCreated={() => void load()} />

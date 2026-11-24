@@ -10,7 +10,7 @@ import { Text } from "@/ui/Text";
 import { space } from "@/ui/theme";
 
 export default function Login() {
-  const { invite } = useLocalSearchParams<{ invite?: string }>();
+  const { invite, activate } = useLocalSearchParams<{ invite?: string; activate?: string }>();
   const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -22,7 +22,7 @@ export default function Login() {
     setError(null);
     try {
       await api.startAuth(phone);
-      router.push({ pathname: "/code", params: { phone, invite } });
+      router.push({ pathname: "/code", params: { phone, invite, activate } });
     } catch (err) {
       // « Un code vient d'être envoyé » n'est pas une faute de saisie : on propose de saisir le code déjà reçu.
       if (err instanceof ApiError && err.code === "too_soon") wait.start(RESEND_DELAY);
@@ -57,7 +57,7 @@ export default function Login() {
           <Button
             variant="secondary"
             label="Saisir le code déjà reçu"
-            onPress={() => router.push({ pathname: "/code", params: { phone, invite, wait: String(wait.left) } })}
+            onPress={() => router.push({ pathname: "/code", params: { phone, invite, activate, wait: String(wait.left) } })}
           />
         </Card>
       ) : null}
