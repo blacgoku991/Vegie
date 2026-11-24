@@ -49,7 +49,8 @@ const config: ExpoConfig = {
     apiUrl,
     appGroup: APP_GROUP,
     eas: {
-      projectId: process.env.EAS_PROJECT_ID,
+      // Projet Expo « vigie » (compte blsckgolu). Surchargeable par EAS_PROJECT_ID.
+      projectId: process.env.EAS_PROJECT_ID ?? "ad30c03a-7e67-45c4-b712-633694be77f3",
       build: {
         experimental: {
           ios: {

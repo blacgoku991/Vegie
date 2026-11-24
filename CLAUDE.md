@@ -22,6 +22,14 @@ Comptes de démo (après `npm run seed -w @vigie/server`) : app `06 39 98 00 01`
 console `conseiller@banque-horizon.test` / `vigie-demo`. Banque Horizon est fictive, ses numéros sont dans les plages
 ARCEP réservées à la fiction (01 99 00…, 06 39 98…).
 
+## Expo / EAS (déjà configuré, ne rien redemander)
+
+- Projet Expo : `@blsckgolu/vigie` (projectId `ad30c03a-7e67-45c4-b712-633694be77f3`, inscrit dans `app.config.ts`).
+- Environnement cloud Claude Code **« Vegie »** : autorise `api.expo.dev`, `expo.dev`, `exp.host` et porte le jeton Expo
+  comme secret réseau (injecté par le proxy). Lancer EAS avec un jeton factice :
+  `cd apps/mobile && EXPO_TOKEN=proxy-injected npx eas-cli@latest build -p android --profile development --non-interactive`
+- Builds : https://expo.dev/accounts/blsckgolu/projects/vigie/builds
+
 ## Prochaine étape
 
 1. **Premier build EAS** (`eas build -p android --profile development`) : valider la compilation du pont Kotlin/Swift
