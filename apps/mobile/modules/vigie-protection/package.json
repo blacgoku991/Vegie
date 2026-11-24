@@ -1,0 +1,6 @@
+{
+  "name": "vigie-protection",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Module natif local Vigie : filtrage d'appels et de messages (Android), annuaire d'appels et App Group (iOS)."
+}

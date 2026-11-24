@@ -1,0 +1,25 @@
+{
+  "name": "vigie",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Vigie — protection anti-arnaque pour les seniors et leurs familles, et console pour les banques.",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "db:up": "docker compose up -d db",
+    "dev:server": "npm run dev -w @vigie/server",
+    "dev:scanner": "npm run dev -w @vigie/scanner",
+    "dev:console": "npm run dev -w @vigie/console",
+    "dev:mobile": "npm run start -w @vigie/mobile",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  }
+}

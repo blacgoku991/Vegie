@@ -1,0 +1,29 @@
+{
+  "name": "@vigie/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=../../.env --watch src/index.ts",
+    "start": "node src/index.ts",
+    "migrate": "node --env-file-if-exists=../../.env src/db/migrate.ts",
+    "seed": "node --env-file-if-exists=../../.env src/db/seed.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test 'src/**/*.test.ts'"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.13.0",
+    "@anthropic-ai/vertex-sdk": "^1.1.3",
+    "@vigie/shared": "*",
+    "fastify": "^5.12.8",
+    "imapflow": "^2.12.2",
+    "mailauth": "^8.1.0",
+    "pg": "^8.23.1",
+    "postal-mime": "^4.2.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1"
+  }
+}

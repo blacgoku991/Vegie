@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDisplayName</key>
+  <string>Vigie</string>
+  <key>NSExtension</key>
+  <dict>
+    <key>NSExtensionAttributes</key>
+    <dict>
+      <!-- À remplacer par le domaine de production (doit être HTTPS et servir apple-app-site-association). -->
+      <key>ILMessageFilterExtensionNetworkURL</key>
+      <string>https://api.vigie.example/v1/ios/message-filter</string>
+    </dict>
+    <key>NSExtensionPointIdentifier</key>
+    <string>com.apple.identitylookup.message-filter</string>
+    <key>NSExtensionPrincipalClass</key>
+    <string>$(PRODUCT_MODULE_NAME).MessageFilterExtension</string>
+  </dict>
+</dict>
+</plist>

@@ -1,0 +1,16 @@
+{
+  "name": "@vigie/scanner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Navigateur headless isolé : visite un lien suspect et renvoie redirections, formulaires et capture. Aucun accès aux données Vigie.",
+  "scripts": {
+    "dev": "node --env-file-if-exists=../../.env src/index.ts",
+    "start": "node src/index.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "node --test src/*.test.ts"
+  },
+  "dependencies": {
+    "playwright": "1.65.1"
+  }
+}

@@ -1,0 +1,24 @@
+# Environnement de développement local (Codespaces). En production : Postgres managé
+# hébergé dans l'UE (ex. Scaleway Paris / OVHcloud Gravelines), chiffré au repos.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vigie
+      POSTGRES_PASSWORD: vigie
+      POSTGRES_DB: vigie
+    ports:
+      - "5432:5432"
+    volumes:
+      - vigie-db:/var/lib/postgresql/data
+  scanner:
+    # Navigateur headless isolé : aucun accès à la base ni aux secrets.
+    build:
+      context: .
+      dockerfile: apps/scanner/Dockerfile
+    environment:
+      SCANNER_SECRET: dev-scanner-secret
+    ports:
+      - "4100:4100"
+volumes:
+  vigie-db:
