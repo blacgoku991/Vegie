@@ -84,13 +84,15 @@ final class ShareModel: ObservableObject {
 struct ShareView: View {
   @ObservedObject var model: ShareModel
   let close: () -> Void
+  @Environment(\.colorScheme) private var scheme
 
   private func look(_ verdict: String) -> (Color, String, String) {
     switch verdict {
-    case "scam": return (Color(red: 0.70, green: 0.15, blue: 0.12), "xmark.octagon.fill", "Arnaque")
-    case "suspicious": return (Color(red: 0.63, green: 0.31, blue: 0.0), "exclamationmark.triangle.fill", "Douteux")
-    case "incomplete": return (Color(red: 0.63, green: 0.31, blue: 0.0), "exclamationmark.triangle.fill", "Vérification incomplète")
-    default: return (Color(red: 0.04, green: 0.42, blue: 0.24), "checkmark.circle.fill", "Aucun signe d'arnaque détecté")
+    case "scam": return (scheme == .dark ? Color(red: 1, green: 0.60, blue: 0.57) : Color(red: 0.70, green: 0.15, blue: 0.12), "xmark.octagon.fill", "Arnaque")
+    case "suspicious": return (scheme == .dark ? Color(red: 1, green: 0.72, blue: 0.40) : Color(red: 0.63, green: 0.31, blue: 0.0), "exclamationmark.triangle.fill", "Douteux")
+    case "incomplete": return (scheme == .dark ? Color(red: 1, green: 0.72, blue: 0.40) : Color(red: 0.63, green: 0.31, blue: 0.0), "exclamationmark.triangle.fill", "Vérification incomplète")
+    case "safe": return (scheme == .dark ? Color(red: 0.43, green: 0.86, blue: 0.62) : Color(red: 0.04, green: 0.42, blue: 0.24), "checkmark.circle.fill", "Aucun signe d'arnaque détecté")
+    default: return (.primary, "questionmark.circle", "Vérification incomplète")
     }
   }
 
@@ -117,9 +119,9 @@ struct ShareView: View {
         Text("Fermer").font(.title2.bold()).frame(maxWidth: .infinity, minHeight: 64)
       }
       .buttonStyle(.borderedProminent)
-      .tint(Color(red: 0.17, green: 0.23, blue: 0.83))
+      .tint(Color(red: 0.416, green: 0.302, blue: 1))
     }
     .padding(24)
-    .background(Color(red: 0.97, green: 0.96, blue: 0.94))
+    .background(Color(uiColor: .systemBackground))
   }
 }

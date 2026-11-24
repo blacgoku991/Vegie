@@ -43,7 +43,7 @@ object Notifier {
   }
 
   private fun deepLink(ctx: Context, path: String, requestCode: Int): PendingIntent {
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("vigie://$path")).apply {
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("smartsecure://$path")).apply {
       setPackage(ctx.packageName)
       addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
     }
@@ -86,9 +86,9 @@ object Notifier {
     post(
       ctx,
       CALL_NOTIFICATION_ID,
-      base(ctx, CHANNEL_CALLS, GREEN, "✓ Appel certifié · ${call.bankName}", text)
+      base(ctx, CHANNEL_CALLS, GREEN, "✓ Numéro concordant · ${call.bankName}", text)
         .setSmallIcon(android.R.drawable.ic_dialog_info)
-        .setContentIntent(deepLink(ctx, "call/certified?id=${call.id}&verified=1", 1)),
+        .setContentIntent(deepLink(ctx, "call/certified?id=${call.id}", 1)),
     )
   }
 
@@ -99,7 +99,7 @@ object Notifier {
   }
 
   fun callUncertified(ctx: Context, bankName: String, number: String, blocked: Boolean) {
-    val title = if (blocked) "Faux appel bloqué" else "⚠ Appel NON certifié"
+    val title = if (blocked) "Appel non certifié rejeté" else "⚠ Appel NON certifié"
     val text =
       if (blocked) "Un appel se présentant comme $bankName a été rejeté : votre banque ne l'avait pas annoncé."
       else "Ce numéro se présente comme $bankName, mais votre banque n'a annoncé aucun appel. Ne donnez aucune information. Raccrochez."
@@ -109,15 +109,15 @@ object Notifier {
   }
 
   fun callUnverifiable(ctx: Context, bankName: String) {
-    val text = "Vigie ne peut pas certifier les appels de $bankName. En cas de doute, raccrochez et rappelez le numéro au dos de votre carte."
+    val text = "SmartSecure ne peut pas confirmer cet appel de $bankName. En cas de doute, raccrochez et rappelez le numéro au dos de votre carte."
     post(ctx, CALL_NOTIFICATION_ID, base(ctx, CHANNEL_CALLS, ORANGE, "Appel de $bankName ?", text).setContentIntent(deepLink(ctx, "call/check", 3)))
   }
 
-  fun callReported(ctx: Context, number: String, reports: Int, blocked: Boolean) {
-    val title = if (blocked) "Appel d'arnaque bloqué" else "⚠ Numéro signalé comme arnaque"
-    val text = "${PhoneUtil.display(number)} a été signalé $reports fois par d'autres utilisateurs de Vigie."
+  fun callReported(ctx: Context, number: String, reports: Int) {
+    val title = "⚠ Numéro signalé"
+    val text = "${PhoneUtil.display(number)} a été signalé $reports fois par d'autres utilisateurs de SmartSecure."
     val b = base(ctx, CHANNEL_CALLS, RED, title, text).setContentIntent(deepLink(ctx, "call/uncertified", 4))
-    if (!blocked) b.addAction(endCallAction(ctx, number))
+    b.addAction(endCallAction(ctx, number))
     post(ctx, CALL_NOTIFICATION_ID, b)
   }
 
@@ -136,7 +136,7 @@ object Notifier {
     post(
       ctx,
       (alertId ?: explanation).hashCode(),
-      base(ctx, CHANNEL_MESSAGES, color, title, "$explanation Ne cliquez sur aucun lien.")
+      base(ctx, CHANNEL_MESSAGES, color, title, "Ouvrez SmartSecure pour lire le résultat. Ne cliquez sur aucun lien.")
         .setCategory(NotificationCompat.CATEGORY_MESSAGE)
         .setContentIntent(deepLink(ctx, if (alertId != null) "alert/$alertId" else "history", 6)),
     )

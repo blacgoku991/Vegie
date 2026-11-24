@@ -3,7 +3,9 @@ import { ZodError } from "zod";
 import { isProd } from "../config.ts";
 import { log } from "../lib/log.ts";
 import { HttpError } from "./context.ts";
+import { adminRoutes } from "./routes-admin.ts";
 import { appRoutes } from "./routes-app.ts";
+import { clientRoutes } from "./routes-clients.ts";
 import { consoleRoutes } from "./routes-console.ts";
 import { mailRoutes } from "./routes-mail.ts";
 
@@ -25,7 +27,8 @@ export function buildServer(): FastifyInstance {
   if (!isProd) {
     app.addHook("onRequest", async (req, reply) => {
       const origin = req.headers.origin;
-      if (!origin || !/^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) return;
+      // Réseau local privé autorisé aussi : aperçu web ouvert depuis un téléphone sur le même Wi-Fi.
+      if (!origin || !/^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}):\d+$/.test(origin)) return;
       reply.header("access-control-allow-origin", origin);
       reply.header("access-control-allow-headers", "authorization, content-type");
       reply.header("access-control-allow-methods", "GET, POST, PATCH, DELETE, OPTIONS");
@@ -48,5 +51,7 @@ export function buildServer(): FastifyInstance {
   app.register(appRoutes, { prefix: "/v1" });
   app.register(mailRoutes, { prefix: "/v1" });
   app.register(consoleRoutes, { prefix: "/v1" });
+  app.register(adminRoutes, { prefix: "/v1" });
+  app.register(clientRoutes, { prefix: "/v1" });
   return app;
 }

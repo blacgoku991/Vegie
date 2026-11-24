@@ -18,7 +18,7 @@ const reachable = await pool.query("select 1").then(
 
 const { migrate } = await import("../db/migrate.ts");
 const { buildServer } = await import("./server.ts");
-const { hashPassword } = await import("../lib/crypto.ts");
+const { hashPassword, sha256 } = await import("../lib/crypto.ts");
 
 const app = buildServer();
 const phone = `+3363998${String(Math.floor(Math.random() * 10_000)).padStart(4, "0")}`;
@@ -31,7 +31,7 @@ before(async () => {
   if (!reachable) return;
   await migrate();
   const slug = `test-${Date.now()}`;
-  bankId = (await pool.query("insert into banks (slug, name, partner, official_numbers) values ($1, 'Banque Test', true, '{+33199007777}') returning id", [slug])).rows[0].id;
+  bankId = (await pool.query("insert into banks (slug, name, partner, official_numbers) values ($1, 'Banque Test', true, '{+33199007700}') returning id", [slug])).rows[0].id;
   advisorEmail = `${slug}@banque.test`;
   await pool.query("insert into advisors (bank_id, email, name, agency, outbound_number, password_hash) values ($1, $2, 'Paul Test', 'Agence Test', '+33199007777', $3)", [
     bankId,
@@ -64,6 +64,15 @@ t("connexion par code SMS", async () => {
   token = res.json().token;
   assert.ok(token.length > 20);
   assert.equal((await app.inject({ method: "GET", url: "/v1/home" })).statusCode, 401);
+});
+
+t("un code SMS réel ne délivre qu’une session, même lors de deux validations simultanées", async () => {
+  const code = "748231";
+  await pool.query(`insert into otp_codes(phone, code_hash, expires_at) values ($1, $2, now() + interval '5 minutes')
+    on conflict(phone) do update set code_hash = excluded.code_hash, expires_at = excluded.expires_at, attempts = 0`, [phone, sha256(code)]);
+  const submit = () => app.inject({ method: "POST", url: "/v1/auth/verify", payload: { phone, code } });
+  const responses = await Promise.all([submit(), submit()]);
+  assert.deepEqual(responses.map(r => r.statusCode).sort(), [200, 400]);
 });
 
 t("le client ajoute sa banque partenaire : lien en attente", async () => {
@@ -136,7 +145,7 @@ t("le client voit l'appel certifié, un autre numéro ou un numéro inconnu rest
   assert.equal(again.call, null);
 });
 
-t("sans numéro sortant renseigné, le numéro officiel de la banque sert de numéro attendu ; sans aucun numéro, refus", async () => {
+t("seul le responsable peut déclarer la ligne directe utilisée pour une annonce", async () => {
   const email = `sans-numero-${advisorEmail}`;
   const adv = await pool.query("insert into advisors (bank_id, email, name, agency, outbound_number, password_hash) values ($1, $2, 'Sans Numero', 'Agence B', null, $3) returning id", [
     bankId,
@@ -146,27 +155,43 @@ t("sans numéro sortant renseigné, le numéro officiel de la banque sert de num
   const login = await app.inject({ method: "POST", url: "/v1/console/login", payload: { email, password: "secret-test" } });
   const other = String(login.headers["set-cookie"]).split(";")[0]!;
   const userId = (await app.inject({ method: "GET", url: `/v1/console/clients?q=${encodeURIComponent(phone)}`, headers: { cookie: other } })).json()[0].userId;
+  const start = (payload: object) => app.inject({ method: "POST", url: "/v1/console/calls", headers: { cookie: other }, payload: { userId, reason: "Point épargne", ...payload } });
 
-  const viaBank = await app.inject({ method: "POST", url: "/v1/console/calls", headers: { cookie: other }, payload: { userId, reason: "Point épargne" } });
-  assert.equal(viaBank.statusCode, 200);
-  assert.equal(viaBank.json().callerNumber, "+33199007777", "repli sur le numéro officiel de la banque");
-  await app.inject({ method: "POST", url: `/v1/console/calls/${viaBank.json().id}/end`, headers: { cookie: other } });
-
-  await pool.query("update banks set official_numbers = '{}', official_phone = null where id = $1", [bankId]);
-  const none = await app.inject({ method: "POST", url: "/v1/console/calls", headers: { cookie: other }, payload: { userId, reason: "Point épargne" } });
-  assert.equal(none.statusCode, 400, "pas de numéro attendu → pas d'annonce");
-  const typed = await app.inject({ method: "POST", url: "/v1/console/calls", headers: { cookie: other }, payload: { userId, reason: "Point épargne", callerNumber: "0199007777" } });
-  assert.equal(typed.statusCode, 200);
-  assert.equal(typed.json().callerNumber, "+33199007777");
-  await pool.query("update banks set official_numbers = '{+33199007777}' where id = $1", [bankId]);
+  const none = await start({});
+  assert.equal(none.statusCode, 400, "pas de ligne directe, pas de numéro saisi : refus (plus de repli sur le numéro officiel)");
+  assert.equal(none.json().error, "caller_number_required");
+  assert.match(none.json().message, /ligne directe/);
+  const override = await app.inject({ method: "POST", url: "/v1/console/calls", headers: { cookie }, payload: { userId, reason: "Rendez-vous", callerNumber: "0199007788" } });
+  assert.equal(override.json().error, "caller_number_mismatch");
+  const official = await start({ callerNumber: "01 99 00 77 00" });
+  assert.equal(official.statusCode, 400, "un numéro officiel public ne peut pas être annoncé");
+  assert.equal(official.json().error, "caller_number_required");
+  const typed = await start({ callerNumber: "0199007788" });
+  assert.equal(typed.statusCode, 400);
+  assert.equal(typed.json().error, "caller_number_required");
   await pool.query("delete from certified_calls where advisor_id = $1", [adv.rows[0].id]);
   await pool.query("delete from advisors where id = $1", [adv.rows[0].id]);
 });
 
+t("deux annonces simultanées ne se superposent pas et une annonce expirée refuse la confirmation", async () => {
+  const userId = (await app.inject({ method: "GET", url: "/v1/me", headers: auth() })).json().id;
+  const start = () => app.inject({ method: "POST", url: "/v1/console/calls", headers: { cookie }, payload: { userId, reason: "Rendez-vous" } });
+  const results = await Promise.all([start(), start()]);
+  assert.deepEqual(results.map(r => r.statusCode).sort(), [200, 409]);
+  const id = results.find(r => r.statusCode === 200)!.json().id;
+  await pool.query("update certified_calls set expires_at = now() - interval '1 second' where id = $1", [id]);
+  const expired = await app.inject({ method: "POST", url: `/v1/me/calls/${id}/confirm`, headers: auth(), payload: { confirmed: true } });
+  assert.equal(expired.statusCode, 404);
+});
+
 t("un faux appel signalé depuis le numéro officiel est rattaché à la banque usurpée", async () => {
-  await app.inject({ method: "POST", url: "/v1/me/calls/report", headers: auth(), payload: { number: "01 99 00 77 77", action: "hung_up" } });
+  await app.inject({ method: "POST", url: "/v1/me/calls/report", headers: auth(), payload: { number: "01 99 00 77 00", action: "hung_up" } });
   const reports = (await app.inject({ method: "GET", url: "/v1/console/reports", headers: { cookie } })).json();
   assert.equal(reports[0].spoofedOfficial, true);
+  await app.inject({ method: "POST", url: "/v1/me/calls/report", headers: auth(), payload: { bankId, action: "called_back" } });
+  const stats = (await app.inject({ method: "GET", url: "/v1/console/stats", headers: { cookie } })).json();
+  assert.equal(stats.fakeCallsReported, 1);
+  assert.equal(stats.callbacksStarted, 1);
 });
 
 t("analyse d'un SMS partagé : arnaque détectée et enregistrée", async () => {
@@ -181,6 +206,9 @@ t("analyse d'un SMS partagé : arnaque détectée et enregistrée", async () => 
   assert.equal(typeof res.json().incomplete, "boolean");
   const alert = (await app.inject({ method: "GET", url: `/v1/me/alerts/${res.json().alertId}`, headers: auth() })).json();
   assert.equal(alert.checks.length, 4);
+  assert.equal(alert.title, "SMS analysé");
+  assert.ok(alert.links.length > 0);
+  assert.equal(alert.links[0].url, alert.links[0].domain);
 });
 
 t("droit à l'effacement : le compte et ses données disparaissent", async () => {

@@ -15,6 +15,10 @@ const schema = z.object({
   PUBLIC_URL: z.string().default("http://localhost:4000"),
   /** Schéma de deep link de l'app (vigie://). */
   APP_SCHEME: z.string().default("vigie"),
+  /** Schéma du lien d'invitation client (QR code de la console). */
+  INVITE_SCHEME: z.string().default("smartsecure"),
+  /** URL publique de la console (liens d'activation de compte). */
+  CONSOLE_URL: z.string().default("http://localhost:3000"),
   /** Clé AES-256 en base64 (32 octets) pour chiffrer les secrets des boîtes mail. */
   ENCRYPTION_KEY: z.string().optional(),
 
@@ -49,7 +53,7 @@ const schema = z.object({
   // SMS des codes de connexion
   SMS_PROVIDER: z.enum(["console", "brevo"]).default("console"),
   BREVO_API_KEY: z.string().optional(),
-  SMS_SENDER: z.string().default("Vigie"),
+  SMS_SENDER: z.string().default("SmartSecure"),
 
   // Notifications push
   EXPO_ACCESS_TOKEN: z.string().optional(),

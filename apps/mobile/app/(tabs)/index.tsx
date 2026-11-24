@@ -6,15 +6,17 @@ import { api } from "@/api";
 import { protection, type ProtectionStatus } from "@/protection";
 import { useLoad } from "@/useLoad";
 import { AlertRow } from "@/ui/AlertRow";
-import { Button } from "@/ui/Button";
+import { Button, RoundAction } from "@/ui/Button";
 import { Icon } from "@/ui/Icon";
-import { FadeIn, Orb } from "@/ui/Orb";
-import { Card, Empty, Screen, Section, ToneBadge } from "@/ui/primitives";
+import { FadeIn } from "@/ui/Orb";
+import { Avatar, Card, Empty, Group, ListRow, NavButton, Screen, ToneBadge } from "@/ui/primitives";
 import { Text } from "@/ui/Text";
-import { palette, space, tones } from "@/ui/theme";
+import { space } from "@/ui/theme";
+import { useTheme } from "@/ui/ThemeProvider";
 
 export default function Home() {
-  const { data, error } = useLoad(() => api.home());
+  const { tones, palette } = useTheme();
+  const { data, error, reload } = useLoad(() => api.home());
 
   // État réel du téléphone : rôle de filtrage d'appels, accès aux notifications, extension d'annuaire iOS.
   const [device, setDevice] = useState<ProtectionStatus | "error" | null>(null);
@@ -38,93 +40,129 @@ export default function Home() {
   }, [data?.activeCall]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const checking = !error && (!data || !device);
-  const channels = computeChannels(data, device);
-  const summary: Summary = checking ? "checking" : summarize(channels);
-  const hello = data?.firstName ? `Bonjour ${data.firstName}` : "Bonjour";
-  const calm = summary === "active" || summary === "checking";
+  const channels = computeChannels(error ? null : data, device);
+  const todo = channels.filter((c) => c.state === "todo").length;
+  const allActive = channels.every((c) => c.state === "active");
+  // Rien n'est affirmé sans preuve : « Active » seulement si chaque protection est confirmée.
+  const status: { tone: "positive" | "warning" | "neutral"; icon: IconName; word: string; summary: string } = checking
+    ? { tone: "neutral", icon: "clock", word: "Vérification…", summary: "Contrôle en cours" }
+    : error
+      ? { tone: "warning", icon: "alert", word: "À vérifier", summary: "Connexion impossible" }
+      : allActive
+        ? { tone: "positive", icon: "check", word: "Active", summary: "Appels · Messages · Mails" }
+        : todo
+          ? { tone: "warning", icon: "alert", word: "À vérifier", summary: todo > 1 ? `${todo} protections à activer` : "1 protection à activer" }
+          : { tone: "warning", icon: "alert", word: "À vérifier", summary: "Réglages à contrôler sur le téléphone" };
+  const activeCall = data?.activeCall;
+  const [detail, setDetail] = useState(false);
+  const toneColor = status.tone === "neutral" ? palette.inkFaint : tones[status.tone].fg;
 
   return (
-    <Screen
-      footer={<Button size="hero" icon="phone" label="On m'appelle de ma banque" onPress={() => router.push("/call/check")} hint="Vérifie si l'appel en cours a été annoncé par votre banque" />}
-    >
-      {data?.activeCall ? (
-        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: "/call/certified", params: { id: data.activeCall!.id } })}>
-          <Card tone="warning" style={styles.callCard}>
-            <View style={[styles.callIcon, { backgroundColor: tones.warning.solid }]}>
-              <Icon name="phone" color="#FFFFFF" size={26} strokeWidth={2.6} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text variant="label" color={tones.warning.fg}>
-                Appel annoncé par votre banque
-              </Text>
-              <Text variant="bodyStrong">
-                {data.activeCall.advisorName} · {data.activeCall.bankName}
-              </Text>
-            </View>
-            <Icon name="chevron" color={tones.warning.fg} />
-          </Card>
+    <Screen>
+      <View style={styles.nav}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Mon profil" onPress={() => router.push("/settings")} hitSlop={4}>
+          <Avatar name={data?.firstName} />
         </Pressable>
-      ) : null}
-
-      <View style={styles.hero}>
-        <Text variant="label" color="soft" style={{ alignSelf: "flex-start" }}>
-          {hello}
+        <Text variant="subhead" accessibilityRole="header">
+          SmartSecure
         </Text>
-        <FadeIn style={{ alignItems: "center" }}>
-          <Orb size={176} tone={calm ? "accent" : "warning"} icon={calm ? "shield" : "alert"} />
-        </FadeIn>
-        <FadeIn delay={120} style={{ alignItems: "center", gap: space.sm }}>
-          <Text variant="display" align="center" accessibilityRole="header" accessibilityLiveRegion="polite">
-            {summaryTitle[summary]}
-          </Text>
-          <Text color="soft" align="center" style={{ maxWidth: 320 }}>
-            {summaryText[summary]}
-          </Text>
-        </FadeIn>
-        <FadeIn delay={220} style={{ alignSelf: "stretch", gap: space.sm }}>
-          {channels.map((c) => (
-            <ChannelRow key={c.key} channel={c} checking={checking} />
-          ))}
-        </FadeIn>
+        <NavButton icon="bell" label="Historique des alertes" onPress={() => router.push("/history")} />
       </View>
 
-      {error ? (
-        <Card tone="warning">
-          <Text color={tones.warning.fg}>{error}</Text>
-        </Card>
+      {activeCall && Date.parse(activeCall.expiresAt) > Date.now() && !error ? (
+        <View style={{ marginTop: space.md }}>
+          <ListRow
+            icon="phoneIn"
+            iconTone="warning"
+            title="Votre banque va vous appeler"
+            subtitle={`${activeCall.advisorName} · ${activeCall.bankName}`}
+            onPress={() => router.push({ pathname: "/call/certified", params: { id: activeCall.id } })}
+          />
+        </View>
       ) : null}
 
-      {data ? (
-        <Card style={styles.stat}>
-          <Text variant="display" color="accent" style={{ fontSize: 52, lineHeight: 56 }}>
-            {data.blockedCount}
+      <FadeIn style={styles.status}>
+        <Text variant="caption" color="faint">
+          Protection
+        </Text>
+        <View accessible accessibilityLiveRegion="polite" accessibilityLabel={`Protection : ${status.word}. ${status.summary}`}>
+          <Text variant="display" align="center">
+            {status.word}
           </Text>
-          <Text color="soft" style={{ flex: 1 }}>
-            {data.blockedCount > 1 ? "arnaques signalées" : "arnaque signalée"} par SmartSecure depuis votre inscription
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${status.summary}. ${detail ? "Masquer le détail" : "Voir le détail"}`}
+          accessibilityState={{ expanded: detail }}
+          disabled={checking}
+          onPress={() => setDetail((v) => !v)}
+          hitSlop={8}
+          style={({ pressed }) => [styles.pill, { backgroundColor: palette.surface, opacity: pressed ? 0.7 : 1 }]}
+        >
+          <Icon name={status.icon} size={14} color={toneColor} strokeWidth={2.4} />
+          <Text variant="footnote" color="soft">
+            {status.summary}
           </Text>
-        </Card>
+          {!checking ? (
+            <View style={{ transform: [{ rotate: detail ? "-90deg" : "90deg" }] }}>
+              <Icon name="chevron" size={12} color={palette.inkFaint} strokeWidth={2.2} />
+            </View>
+          ) : null}
+        </Pressable>
+      </FadeIn>
+
+      {detail ? (
+        <View style={{ marginTop: space.md }}>
+          <Group>
+            {channels.map((channel) => (
+              <ChannelRow key={channel.key} channel={channel} />
+            ))}
+          </Group>
+        </View>
       ) : null}
 
-      <Section
-        title="Dernières alertes"
-        action={
-          <Pressable accessibilityRole="button" onPress={() => router.push("/history")} hitSlop={12} style={{ minHeight: 48, justifyContent: "center" }}>
-            <Text variant="label" color="accent">
-              Tout voir
-            </Text>
-          </Pressable>
-        }
-      >
-        {data?.latestAlerts.length ? (
-          data.latestAlerts.map((a, i) => (
-            <FadeIn key={a.id} delay={260 + i * 80}>
-              <AlertRow alert={a} />
-            </FadeIn>
-          ))
-        ) : data ? (
-          <Empty icon="check" title="Rien à signaler" text="Aucun message douteux ces derniers jours." />
-        ) : null}
-      </Section>
+      <View style={styles.actions}>
+        <RoundAction tone="primary" icon="phoneIn" label="Appel banque" hint="Vérifier si votre conseiller a annoncé cet appel" onPress={() => router.push("/call/check")} />
+        <RoundAction icon="bank" label="Rappeler" hint="Retrouver le numéro officiel de votre banque" onPress={() => router.push("/callback")} />
+        <RoundAction icon="message" label="Message" hint="Faire vérifier un SMS, un mail ou un lien" onPress={() => router.push("/check-message")} />
+        <RoundAction icon="heart" label="Proches" onPress={() => router.push("/contacts")} />
+      </View>
+
+      <View style={{ marginTop: space.lg + 4 }}>
+        {error ? (
+          <Card tone="warning" style={{ gap: 10 }}>
+            <Text color={tones.warning.fg}>{error}</Text>
+            <Button variant="secondary" label="Réessayer" onPress={() => void reload()} />
+          </Card>
+        ) : (
+          <Group
+            header={
+              <View style={styles.boxHead}>
+                <Text variant="subhead" accessibilityRole="header">
+                  Récent
+                </Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Tout voir dans l’historique" onPress={() => router.push("/history")} hitSlop={12}>
+                  <Text variant="caption" color="faint">
+                    Tout voir
+                  </Text>
+                </Pressable>
+              </View>
+            }
+          >
+            {!data ? (
+              <View style={{ padding: space.md }}>
+                <Text variant="caption" color="faint" accessibilityLiveRegion="polite">
+                  Chargement…
+                </Text>
+              </View>
+            ) : data.latestAlerts.length ? (
+              data.latestAlerts.slice(0, 4).map((alert) => <AlertRow key={alert.id} alert={alert} />)
+            ) : (
+              <Empty icon="message" title="Rien à signaler" text="Les appels et messages vérifiés apparaîtront ici." />
+            )}
+          </Group>
+        )}
+      </View>
     </Screen>
   );
 }
@@ -173,7 +211,7 @@ function computeChannels(data: HomeResponse | null, device: ProtectionStatus | "
       label: "Appels",
       state: calls,
       to: "/protections",
-      detail: calls === "active" ? "Les appels sont vérifiés." : calls === "todo" ? "Le réglage du téléphone n'est pas activé." : "SmartSecure ne peut pas lire ce réglage.",
+      detail: calls === "active" ? (ios ? "L’annuaire signale les numéros connus." : "Le filtrage des appels est activé.") : calls === "todo" ? "Le réglage du téléphone n’est pas activé." : "À contrôler dans les réglages du téléphone.",
     },
     {
       key: "messages",
@@ -185,75 +223,29 @@ function computeChannels(data: HomeResponse | null, device: ProtectionStatus | "
         messages === "active"
           ? "Les messages avec un lien sont vérifiés."
           : messages === "todo"
-            ? "L'accès aux notifications n'est pas activé."
+            ? "L’accès aux notifications n’est pas activé."
             : ios
-              ? "Sur iPhone, SmartSecure ne peut pas voir si le filtre SMS est activé. Vérifiez dans les réglages."
-              : "SmartSecure ne peut pas lire ce réglage.",
+              ? "Sur iPhone, le filtre SMS se contrôle dans les réglages."
+              : "À contrôler dans les réglages du téléphone.",
     },
     { key: "mails", icon: "mail", label: "Mails", state: mails, to: "/mailboxes", detail: mailDetail },
   ];
 }
 
-type Summary = "checking" | "active" | "partial" | "unverified";
-
-/** « Protection active » seulement si tous les canaux disponibles le sont. */
-function summarize(channels: Channel[]): Summary {
-  if (channels.every((c) => c.state === "active")) return "active";
-  if (channels.some((c) => c.state === "todo")) return "partial";
-  return "unverified";
-}
-
-const summaryTitle: Record<Summary, string> = {
-  checking: "Vérification…",
-  active: "Protection active",
-  partial: "Protection partielle",
-  unverified: "Protection à vérifier",
-};
-
-const summaryText: Record<Summary, string> = {
-  checking: "SmartSecure regarde ce qui est activé sur votre téléphone.",
-  active: "Vos appels, vos messages et vos mails sont surveillés.",
-  partial: "Activez les protections ci-dessous pour être protégé partout.",
-  unverified: "SmartSecure ne peut pas confirmer toutes les protections. Ouvrez les réglages pour les vérifier.",
-};
-
 const stateLook: Record<ChannelState, { tone: "positive" | "warning" | "neutral"; icon: IconName; label: string }> = {
   active: { tone: "positive", icon: "check", label: "Actif" },
   todo: { tone: "warning", icon: "alert", label: "À activer" },
-  unknown: { tone: "neutral", icon: "clock", label: "État inconnu" },
+  unknown: { tone: "neutral", icon: "clock", label: "À contrôler" },
 };
 
-function ChannelRow({ channel, checking }: { channel: Channel; checking: boolean }) {
-  const look = checking ? { tone: "neutral" as const, icon: "clock" as IconName, label: "Vérification…" } : stateLook[channel.state];
-  return (
-    <Card style={{ gap: space.sm }}>
-      <View style={styles.channelHead} accessible accessibilityLabel={`${channel.label} : ${look.label}. ${checking ? "" : channel.detail}`}>
-        <Icon name={channel.icon} size={26} color={palette.accent} />
-        <Text variant="bodyStrong" style={{ flex: 1 }}>
-          {channel.label}
-        </Text>
-        <ToneBadge tone={look.tone} icon={look.icon} label={look.label} />
-      </View>
-      {checking ? null : (
-        <>
-          <Text color="soft">{channel.detail}</Text>
-          {channel.state === "active" ? null : (
-            <Button
-              variant={channel.state === "todo" ? "primary" : "secondary"}
-              label={channel.state === "todo" ? "Activer" : "Vérifier les réglages"}
-              onPress={() => router.push(channel.to)}
-            />
-          )}
-        </>
-      )}
-    </Card>
-  );
+function ChannelRow({ channel }: { channel: Channel }) {
+  return <ListRow icon={channel.icon} title={channel.label} subtitle={channel.detail} right={<ToneBadge {...stateLook[channel.state]} />} onPress={() => router.push(channel.to)} />;
 }
 
 const styles = StyleSheet.create({
-  hero: { alignItems: "center", gap: space.md + 4, paddingTop: space.sm, paddingBottom: space.lg },
-  channelHead: { flexDirection: "row", alignItems: "center", gap: space.sm, flexWrap: "wrap" },
-  callCard: { flexDirection: "row", alignItems: "center", gap: space.md, marginTop: space.md, marginBottom: space.sm },
-  callIcon: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
-  stat: { flexDirection: "row", alignItems: "center", gap: space.lg, marginTop: space.md },
+  nav: { minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: space.xs },
+  status: { alignItems: "center", marginTop: space.xl, gap: 2 },
+  pill: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 30, paddingHorizontal: 12, borderRadius: 15, marginTop: 10 },
+  actions: { flexDirection: "row", alignItems: "flex-start", marginTop: space.xl, gap: 4 },
+  boxHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: space.md, paddingTop: 14, paddingBottom: 4 },
 });

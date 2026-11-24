@@ -6,34 +6,38 @@ import { sourceLabel, when } from "@/format";
 import { useLoad } from "@/useLoad";
 import { Button } from "@/ui/Button";
 import { Icon } from "@/ui/Icon";
-import { FadeIn } from "@/ui/Orb";
-import { Card, CheckStatusBadge, Screen, Section, VerdictBadge } from "@/ui/primitives";
+import { Card, CheckStatusBadge, Group, Screen, Section, ToneBadge } from "@/ui/primitives";
 import { Text } from "@/ui/Text";
-import { palette, radius, space, tones } from "@/ui/theme";
+import { space } from "@/ui/theme";
+import { useTheme } from "@/ui/ThemeProvider";
 
 const checkIcons: Record<CheckKey, IconName> = { sender: "user", links: "link", site: "globe", text: "text" };
 
 export default function AlertDetail() {
+  const { palette, tones } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: alert, error } = useLoad(() => api.alert(id), [id]);
 
   if (!alert) {
     return (
       <Screen back>
-        {error ? <Text color="soft">{error}</Text> : null}
+        <Text color="faint" accessibilityLiveRegion="polite">
+          {error ?? "Chargement de l’alerte…"}
+        </Text>
       </Screen>
     );
   }
 
   const meta = verdictMeta(alert.verdict, alert.incomplete);
-  const tone = tones[meta.tone];
   const isScam = meta.tone !== "positive";
+  const fg = meta.tone === "neutral" ? palette.inkSoft : tones[meta.tone].fg;
+  const back = () => (router.canGoBack() ? router.back() : router.replace("/"));
 
   return (
-    <Screen back footer={<Button label="J'ai compris" onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))} />}>
-      <FadeIn style={{ gap: space.md }}>
-        <VerdictBadge verdict={alert.verdict} incomplete={alert.incomplete} size="lg" />
-        <Text variant={alert.explanation.length > 70 ? "heading" : "title"} accessibilityRole="header">
+    <Screen back footer={<Button label="J’ai compris" onPress={back} />}>
+      <View style={{ gap: 10, marginTop: space.sm }}>
+        <ToneBadge tone={meta.tone} icon={meta.icon} label={meta.label} size="lg" />
+        <Text variant="heading" accessibilityRole="header">
           {alert.explanation}
         </Text>
         <Text variant="caption" color="faint">
@@ -41,58 +45,62 @@ export default function AlertDetail() {
           {alert.sender ? ` de ${alert.sender}` : ""} · {when(alert.receivedAt)}
           {alert.origin ? ` · ${alert.origin}` : ""}
         </Text>
-      </FadeIn>
+      </View>
 
-      <FadeIn delay={100}>
-        <Card tone={meta.tone} style={{ marginTop: space.lg, flexDirection: "row", gap: space.md }}>
-          <Icon name={isScam ? "alert" : "check"} color={tone.fg} />
-          <View style={{ flex: 1, gap: 4 }}>
-            <Text variant="bodyStrong" color={tone.fg}>
-              {isScam ? "Que faire ?" : "Aucun signe d'arnaque détecté"}
-            </Text>
-            <Text color={tone.fg}>{alert.advice}</Text>
-          </View>
-        </Card>
-      </FadeIn>
+      <Card style={{ marginTop: space.lg, gap: 6 }}>
+        <Text variant="subhead" color={fg}>
+          {isScam ? "Que faire ?" : "Aucun signe d’arnaque détecté"}
+        </Text>
+        <Text>{alert.advice}</Text>
+      </Card>
 
-      <Section title="Ce que SmartSecure a vérifié">
-        <View style={styles.list}>
-          {alert.checks.map((c, i) => (
-            <FadeIn key={c.key} delay={160 + i * 70}>
-              <View style={[styles.check, i > 0 && styles.divider]}>
-                <View style={styles.checkIcon}>
-                  <Icon name={checkIcons[c.key]} color={palette.ink} />
-                </View>
-                <View style={{ flex: 1, gap: 6 }}>
-                  <View style={styles.checkHead}>
-                    <Text variant="bodyStrong">{c.title}</Text>
-                    <CheckStatusBadge status={c.status} />
-                  </View>
-                  <Text color="soft">{c.detail}</Text>
-                </View>
-              </View>
-            </FadeIn>
-          ))}
+      {isScam ? (
+        <View style={{ gap: 10, marginTop: 10 }}>
+          <Button icon="bank" variant="secondary" label="J’ai donné un code ou payé" onPress={() => router.push("/callback")} />
+          <Button icon="heart" variant="secondary" label="Joindre un proche" onPress={() => router.push("/contacts")} />
         </View>
+      ) : null}
+
+      <Section title="Ce qui a été vérifié">
+        <Group>
+          {alert.checks.map((c) => (
+            <View key={c.key} style={styles.check}>
+              <View style={[styles.checkIcon, { backgroundColor: palette.surfaceHigh }]}>
+                <Icon name={checkIcons[c.key]} size={20} color={palette.ink} />
+              </View>
+              <View style={{ flex: 1, gap: 3 }}>
+                <View style={styles.checkHead}>
+                  <Text variant="bodyStrong">{c.title}</Text>
+                  <CheckStatusBadge status={c.status} />
+                </View>
+                <Text variant="caption" color="faint">
+                  {c.detail}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </Group>
       </Section>
 
       {alert.links.length ? (
         <Section title="Liens du message">
-          {alert.links.map((l) => (
-            <Card key={l.url} style={{ padding: space.md, gap: 4 }}>
-              <Text variant="bodyStrong" numberOfLines={1}>
-                {l.domain}
-              </Text>
-              <Text variant="caption" color="soft">
-                {l.domainAgeDays !== null
-                  ? l.domainAgeDays < 365
-                    ? `Site créé il y a ${l.domainAgeDays} jour${l.domainAgeDays > 1 ? "s" : ""}`
-                    : `Site existant depuis ${Math.floor(l.domainAgeDays / 365)} an${l.domainAgeDays >= 730 ? "s" : ""}`
-                  : "Ancienneté du site inconnue"}
-                {isScam ? " · N'ouvrez pas ce lien" : ""}
-              </Text>
-            </Card>
-          ))}
+          <Group>
+            {alert.links.map((l, i) => (
+              <View key={`${l.domain}-${i}`} style={{ paddingHorizontal: space.md, paddingVertical: 12, gap: 2 }}>
+                <Text variant="bodyStrong" selectable>
+                  {l.domain}
+                </Text>
+                <Text variant="caption" color="faint">
+                  {l.domainAgeDays !== null
+                    ? l.domainAgeDays < 365
+                      ? `Site créé il y a ${l.domainAgeDays} jour${l.domainAgeDays > 1 ? "s" : ""}`
+                      : `Site existant depuis ${Math.floor(l.domainAgeDays / 365)} an${l.domainAgeDays >= 730 ? "s" : ""}`
+                    : "Ancienneté du site inconnue"}
+                  {isScam ? " · N’ouvrez pas ce lien" : ""}
+                </Text>
+              </View>
+            ))}
+          </Group>
         </Section>
       ) : null}
     </Screen>
@@ -100,9 +108,7 @@ export default function AlertDetail() {
 }
 
 const styles = StyleSheet.create({
-  list: { backgroundColor: palette.surface, borderRadius: radius.lg, paddingHorizontal: space.md },
-  check: { flexDirection: "row", gap: space.md, paddingVertical: space.md + 4 },
-  divider: { borderTopWidth: 1, borderTopColor: palette.line },
-  checkIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: palette.paper, alignItems: "center", justifyContent: "center" },
+  check: { flexDirection: "row", gap: 12, paddingHorizontal: space.md, paddingVertical: 12 },
+  checkIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
   checkHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: space.sm },
 });

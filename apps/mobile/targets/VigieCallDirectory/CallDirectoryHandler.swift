@@ -2,7 +2,7 @@ import CallKit
 import Foundation
 
 /// Annuaire d'appels Vigie (CallKit).
-/// - Numéros signalés par la communauté : bloqués au-delà de 10 signalements, sinon étiquetés.
+/// - Numéros signalés par la communauté : étiquetés pour que la personne puisse choisir de décrocher.
 /// - Numéros officiels des banques : étiquetés « vérifiez dans Vigie », car un escroc peut
 ///   usurper le vrai numéro d'une banque. L'étiquette invite à appuyer sur
 ///   « On m'appelle de ma banque » dans l'app.
@@ -22,20 +22,18 @@ final class CallDirectoryHandler: CXCallDirectoryProvider {
     let directory = loadDirectory()
 
     // CallKit exige des numéros triés par ordre croissant, sans doublon.
-    var blocked = Set<CXCallDirectoryPhoneNumber>()
     var labels: [CXCallDirectoryPhoneNumber: String] = [:]
 
     for r in directory?.reportedNumbers ?? [] {
       guard let n = Self.numeric(r.number) else { continue }
-      if r.reports >= 10 { blocked.insert(n) } else { labels[n] = "⚠︎ Arnaque signalée (SmartSecure)" }
+      labels[n] = "⚠︎ Numéro signalé (SmartSecure)"
     }
     for b in directory?.bankNumbers ?? [] {
-      guard let n = Self.numeric(b.number), !blocked.contains(n) else { continue }
+      guard let n = Self.numeric(b.number) else { continue }
       labels[n] = "\(b.bankName) ? Vérifiez dans SmartSecure"
     }
 
     if context.isIncremental { context.removeAllBlockingEntries(); context.removeAllIdentificationEntries() }
-    for n in blocked.sorted() { context.addBlockingEntry(withNextSequentialPhoneNumber: n) }
     for n in labels.keys.sorted() { context.addIdentificationEntry(withNextSequentialPhoneNumber: n, label: labels[n]!) }
     context.completeRequest()
   }

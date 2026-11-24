@@ -5,9 +5,9 @@ import { verdictMeta, type ScanMessageResponse } from "@vigie/shared";
 import { api } from "@/api";
 import { Button } from "@/ui/Button";
 import { FadeIn } from "@/ui/Orb";
-import { Card, Field, Screen, VerdictBadge } from "@/ui/primitives";
+import { Card, Field, Screen, ToneBadge } from "@/ui/primitives";
 import { Text } from "@/ui/Text";
-import { space, tones } from "@/ui/theme";
+import { space } from "@/ui/theme";
 
 /** « Un doute ? » : coller un message pour le faire vérifier. */
 export default function CheckMessage() {
@@ -20,7 +20,7 @@ export default function CheckMessage() {
     setBusy(true);
     setError(null);
     try {
-      setResult(await api.scan({ source: "share", text }));
+      setResult(await api.scan({ source: "share", text: text.trim() }));
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -46,27 +46,36 @@ export default function CheckMessage() {
           placeholder="Votre colis est en attente…"
           value={text}
           onChangeText={setText}
+          maxLength={20000}
+          editable={!busy}
           multiline
-          style={{ minHeight: 200, textAlignVertical: "top", paddingTop: space.md, fontSize: 20 }}
-          help="Astuce : dans vos messages, appuyez longuement sur le texte puis « Copier »."
+          style={{ minHeight: 180, textAlignVertical: "top" }}
+          help={`${text.trim().length < 5 ? "Collez au moins 5 caractères. " : ""}Dans vos messages, appuyez longuement sur le texte puis « Copier ».`}
           error={error}
         />
       ) : (
         <FadeIn>
-          <Card tone={verdictMeta(result.verdict, result.incomplete).tone} style={{ gap: space.md }}>
-            <VerdictBadge verdict={result.verdict} incomplete={result.incomplete} size="lg" onTint />
-            <Text variant="heading" color={tones[verdictMeta(result.verdict, result.incomplete).tone].fg}>
-              {result.explanation}
-            </Text>
-            <Text color={tones[verdictMeta(result.verdict, result.incomplete).tone].fg}>{result.advice}</Text>
-          </Card>
+          <ResultCard result={result} />
           {result.alertId ? (
-            <View style={{ marginTop: space.md }}>
+            <View style={{ marginTop: 10 }}>
               <Button variant="ghost" label="Voir le détail des vérifications" onPress={() => router.push(`/alert/${result.alertId}`)} />
             </View>
           ) : null}
         </FadeIn>
       )}
     </Screen>
+  );
+}
+
+function ResultCard({ result }: { result: ScanMessageResponse }) {
+  const meta = verdictMeta(result.verdict, result.incomplete);
+  return (
+    <Card style={{ gap: 10, padding: space.md + 4 }}>
+      <ToneBadge tone={meta.tone} icon={meta.icon} label={meta.label} size="lg" />
+      <Text variant="heading" accessibilityRole="header">
+        {result.explanation}
+      </Text>
+      <Text color="soft">{result.advice}</Text>
+    </Card>
   );
 }

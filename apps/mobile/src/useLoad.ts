@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useFocusEffect } from "expo-router";
 
 /** Charge des données à chaque affichage de l'écran (retour compris). */
@@ -7,15 +7,18 @@ export function useLoad<T>(loader: () => Promise<T>, deps: unknown[] = []) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const version = useRef(0);
   const reload = useCallback(async () => {
+    const current = ++version.current;
     setLoading(true);
+    setError(null);
     try {
-      setData(await loader());
-      setError(null);
+      const result = await loader();
+      if (current === version.current) setData(result);
     } catch (err) {
-      setError((err as Error).message);
+      if (current === version.current) { setData(null); setError((err as Error).message); }
     } finally {
-      setLoading(false);
+      if (current === version.current) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
@@ -23,6 +26,7 @@ export function useLoad<T>(loader: () => Promise<T>, deps: unknown[] = []) {
   useFocusEffect(
     useCallback(() => {
       void reload();
+      return () => { version.current++; };
     }, [reload]),
   );
 

@@ -42,12 +42,12 @@ class VigieNotificationListener : NotificationListenerService() {
 
     /**
      * Le message mérite-t-il une vérification ?
-     * Les SMS de code à usage unique (code + chiffres, sans lien) ne sont JAMAIS envoyés :
+     * Les SMS de code à usage unique (code + chiffres) ne sont JAMAIS envoyés :
      * un vrai code ne doit pas quitter le téléphone.
      */
     fun worthChecking(text: String): Boolean {
       val hasLink = link.containsMatchIn(text)
-      if (!hasLink && otp.containsMatchIn(text) && otpWords.containsMatchIn(text)) return false
+      if (otp.containsMatchIn(text) && otpWords.containsMatchIn(text)) return false
       return hasLink || phone.containsMatchIn(text) || money.containsMatchIn(text)
     }
   }
@@ -72,7 +72,7 @@ class VigieNotificationListener : NotificationListenerService() {
       val body = JSONObject().put("source", source).put("sender", sender).put("text", text.take(5000)).put("app", appName)
       val res = Api.post(store, "/me/scan", body, 20_000) ?: return@execute
       val verdict = res.optString("verdict")
-      val incomplete = verdict == "safe" && res.optBoolean("incomplete", false)
+      val incomplete = verdict == "safe" && res.optBoolean("incomplete", true)
       if (verdict == "scam" || verdict == "suspicious" || incomplete) {
         val shown = if (incomplete) "incomplete" else verdict
         Notifier.message(this, shown, res.optString("explanation"), res.optString("alertId").takeIf { it.isNotBlank() && it != "null" }, appName)

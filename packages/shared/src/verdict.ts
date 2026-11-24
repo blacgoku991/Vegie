@@ -5,6 +5,9 @@ export type Verdict = "safe" | "suspicious" | "scam";
 
 /** Nom d'icône du jeu d'icônes Vigie (dessiné côté app et console). */
 export type IconName =
+  | "bell"
+  | "phoneIn"
+  | "settings"
   | "shield"
   | "check"
   | "alert"

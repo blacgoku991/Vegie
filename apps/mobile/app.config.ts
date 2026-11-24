@@ -10,12 +10,13 @@ const apiHost = new URL(apiUrl).host;
 const config: ExpoConfig = {
   name: "SmartSecure",
   slug: "vigie",
-  scheme: "vigie",
+  // smartsecure://join?code=… : lien d'invitation du conseiller (QR code de la console).
+  scheme: ["smartsecure", "vigie"],
   version: "0.1.0",
   orientation: "portrait",
-  userInterfaceStyle: "light",
+  userInterfaceStyle: "dark",
   icon: "./assets/icon.png",
-  backgroundColor: "#F7F5F0",
+  backgroundColor: "#07070C",
   ios: {
     bundleIdentifier: BUNDLE_ID,
     supportsTablet: false,
@@ -42,8 +43,8 @@ const config: ExpoConfig = {
     "expo-router",
     "expo-secure-store",
     "expo-font",
-    ["expo-notifications", { color: "#2B3AD4", defaultChannel: "alerts" }],
-    ["expo-splash-screen", { backgroundColor: "#F7F5F0", image: "./assets/splash.png", imageWidth: 160 }],
+    ["expo-notifications", { color: "#6A4DFF", defaultChannel: "alerts" }],
+    ["expo-splash-screen", { backgroundColor: "#07070C", image: "./assets/splash.png", imageWidth: 160 }],
     "@bacons/apple-targets",
     ["./plugins/with-vigie-ios.js", { apiHost }],
   ],

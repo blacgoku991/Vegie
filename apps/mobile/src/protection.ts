@@ -48,7 +48,7 @@ export const protection = {
     await Native?.syncDirectory(JSON.stringify(dir));
   },
 
-  /** Appel annoncé par la banque : le filtrage Android le reconnaîtra même hors ligne. */
+  /** Appel annoncé par la banque : le filtrage Android saura quelle ligne faire vérifier par le serveur. */
   setExpectedCall(call: Pick<CertifiedCall, "id" | "callerNumber" | "bankName" | "advisorName" | "agency" | "expiresAt"> | null) {
     Native?.setExpectedCall(call ? JSON.stringify(call) : null);
   },

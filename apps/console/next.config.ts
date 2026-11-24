@@ -4,6 +4,7 @@ const api = process.env.VIGIE_API_URL ?? "http://localhost:4000";
 
 const config: NextConfig = {
   poweredByHeader: false,
+  devIndicators: false,
   transpilePackages: ["@vigie/shared"],
   // L'API est servie sous le même domaine que la console : cookie de session httpOnly, pas de CORS.
   async rewrites() {

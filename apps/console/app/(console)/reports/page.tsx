@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CallAction, FakeCallReport } from "@vigie/shared";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { Badge, dateFr } from "@/components/ui";
 
@@ -14,10 +15,11 @@ const actionLabel: Record<CallAction, string> = {
 
 export default function ReportsPage() {
   const [reports, setReports] = useState<FakeCallReport[] | null>(null);
+  const [error, setError] = useState("");
   useEffect(() => {
-    api.reports().then(setReports).catch(() => setReports([]));
+    api.reports().then(setReports).catch((e: Error) => setError(e.message));
   }, []);
-  if (!reports) return null;
+  if (!reports) return <p className="soft" role="status">{error || "Chargement des signalements…"}</p>;
 
   // Numéros les plus usurpés : ce sont souvent les vrais numéros de la banque.
   const byNumber = new Map<string, { count: number; spoofed: boolean }>();
@@ -29,32 +31,33 @@ export default function ReportsPage() {
   const top = [...byNumber.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 3);
 
   return (
-    <div className="stack" style={{ gap: 40 }}>
-      <header className="stack" style={{ gap: 8 }}>
-        <h1>Faux appels signalés</h1>
-        <p className="soft" style={{ fontSize: 20 }}>
-          Appels reçus par vos clients au nom de votre banque, sans annonce dans Vigie. Partagez-les avec votre service fraude.
-        </p>
+    <div className="page">
+      <header className="page-head">
+        <div>
+          <h1>Appels signalés</h1>
+          <p className="sub">Vos clients ont indiqué avoir raccroché lors d’un appel suspect. Le service fraude peut examiner ces signalements.</p>
+          <p className="sub">« Numéro officiel affiché » : l’appel montrait un numéro de votre banque. Ce numéro peut être usurpé, il ne prouve pas que l’appel venait de vous.</p>
+        </div>
       </header>
 
       {top.length ? (
-        <section className="stack">
+        <section className="section">
           <h2>Numéros les plus utilisés</h2>
           <div className="grid-3">
             {top.map(([n, { count, spoofed }]) => (
-              <div key={n} className="card kpi" style={{ gap: 10 }}>
-                <strong style={{ fontSize: 28, whiteSpace: "nowrap" }}>{n}</strong>
-                <span className="soft">
+              <div key={n} className="card kpi">
+                <span className="kpi-label">
                   {count} signalement{count > 1 ? "s" : ""}
                 </span>
-                {spoofed ? <Badge tone="danger" icon="stop" label="Votre numéro officiel, usurpé" /> : null}
+                <strong style={{ fontSize: 24, whiteSpace: "nowrap" }}>{n}</strong>
+                {spoofed ? <div style={{ marginTop: 8 }}><Badge tone="danger" icon="alert" label="Numéro officiel affiché" /></div> : null}
               </div>
             ))}
           </div>
         </section>
       ) : null}
 
-      <section className="card" style={{ padding: 8 }}>
+      <section className="card flush">
         {reports.length ? (
           <table>
             <thead>
@@ -70,11 +73,11 @@ export default function ReportsPage() {
                 <tr key={r.id}>
                   <td className="soft">{dateFr(r.reportedAt)}</td>
                   <td>
-                    <strong>{r.number ?? "Numéro masqué"}</strong>
-                    {r.spoofedOfficial ? <div className="faint">numéro officiel usurpé</div> : null}
+                    <span className="cell-main">{r.number ?? "Numéro inconnu"}</span>
+                    {r.spoofedOfficial ? <div style={{ marginTop: 4 }}><Badge tone="danger" icon="alert" label="Numéro officiel affiché" /></div> : null}
                   </td>
                   <td>
-                    {r.client.firstName ?? "Client"} <span className="faint">{r.client.phoneMasked}</span>
+                    {r.client.userId ? <Link className="table-action" href={`/clients/${r.client.userId}#reports`}>{r.client.firstName ?? "Client"}</Link> : (r.client.firstName ?? "Client")} <span className="soft">{r.client.phoneMasked}</span>
                   </td>
                   <td>
                     <Badge tone={r.action === "hung_up" ? "positive" : "neutral"} icon={r.action === "hung_up" ? "check" : "phone"} label={actionLabel[r.action]} />
@@ -84,7 +87,7 @@ export default function ReportsPage() {
             </tbody>
           </table>
         ) : (
-          <p className="soft" style={{ padding: 24 }}>Aucun faux appel signalé pour le moment.</p>
+          <p className="empty">Aucun appel signalé pour le moment.</p>
         )}
       </section>
     </div>

@@ -41,7 +41,7 @@ export function toSummary(r: AlertRow): AlertSummary {
 }
 
 export function toDetail(r: AlertRow): AlertDetail {
-  return { ...toSummary(r), checks: r.checks, origin: r.origin, advice: r.advice, links: r.links };
+  return { ...toSummary(r), checks: r.checks, origin: r.origin, advice: r.advice, links: r.links.map(l => ({ url: l.domain, finalUrl: null, domain: l.domain, domainAgeDays: l.domainAgeDays })) };
 }
 
 export interface ProcessOptions {
@@ -82,7 +82,7 @@ export async function processMessage(opts: ProcessOptions): Promise<{ alert: Ale
       sender,
       opts.origin,
       JSON.stringify(checks),
-      JSON.stringify(result.links.map((l) => ({ url: l.url, finalUrl: l.finalUrl, domain: l.host, domainAgeDays: l.domainAgeDays }))),
+      JSON.stringify(result.links.map((l) => ({ url: l.host, finalUrl: null, domain: l.host, domainAgeDays: l.domainAgeDays }))),
       opts.fingerprint,
       opts.input.receivedAt,
       result.incomplete,
@@ -114,10 +114,10 @@ async function notifyUser(userId: string, alertId: string, result: AnalysisResul
   await pushToUser(userId, {
     title: scam ? "Arnaque détectée" : unchecked ? "Vérification incomplète" : "Message douteux",
     body: scam
-      ? `Vigie a repéré ${sourceWord[source]} dangereux. Ne cliquez sur aucun lien. Touchez pour voir.`
+      ? `SmartSecure a repéré ${sourceWord[source]} dangereux. Ne cliquez sur aucun lien. Touchez pour voir.`
       : unchecked
         ? `Vérification incomplète : restez prudent avec ${sourceWord[source]}. Touchez pour voir.`
-        : `Vigie a un doute sur ${sourceWord[source]}. Touchez pour voir pourquoi.`,
+        : `SmartSecure a un doute sur ${sourceWord[source]}. Touchez pour voir pourquoi.`,
     data: { type: "alert", alertId, verdict: result.verdict },
     channelId: "alerts",
     interruptionLevel: scam ? "time-sensitive" : "active",
@@ -138,7 +138,7 @@ async function maybeWarnContact(userId: string, source: AlertSource) {
   for (const c of contacts) {
     await sendSms(
       c.phone,
-      `Vigie : ${user.first_name ?? "votre proche"} vient de recevoir ${sourceWord[source]} frauduleux. Vigie l'a bloqué, mais un petit appel rassurant peut aider.`,
+      `SmartSecure : ${user.first_name ?? "votre proche"} vient de recevoir ${sourceWord[source]} frauduleux. Appelez votre proche pour vérifier ensemble ce qui s’est passé.`,
     ).catch((err) => log.warn("contact.sms_failed", { error: (err as Error).message }));
   }
 }

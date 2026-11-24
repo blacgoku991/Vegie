@@ -38,3 +38,10 @@ export const sourceLabel: Record<string, string> = {
 };
 
 export const sourceIcon = { mail: "mail", sms: "message", whatsapp: "message", messaging: "message", call: "phone", share: "share" } as const;
+
+/** Saisie d'un numéro français groupée par paires (« 06 39 98 00 01 ») ; un numéro international (+…) est laissé tel quel. */
+export function groupPhoneInput(raw: string): string {
+  if (raw.trim().startsWith("+")) return raw;
+  const digits = raw.replace(/\D/g, "").slice(0, 10);
+  return digits.replace(/(\d{2})(?=\d)/g, "$1 ");
+}

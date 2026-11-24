@@ -18,16 +18,16 @@ export function BarChart({ title, units, data }: { title: string; units: [string
   const innerW = W - pad.l - pad.r;
   const innerH = H - pad.t - pad.b;
   const slot = innerW / data.length;
-  const barW = Math.max(6, Math.min(18, slot - 2));
+  const barW = Math.max(6, Math.min(14, slot - 2));
   const y = (v: number) => pad.t + innerH - (v / max) * innerH;
   const label = (day: string) => new Date(day).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
   const plural = (n: number) => `${n} ${n > 1 ? units[1] : units[0]}`;
 
   return (
-    <figure className="card stack" style={{ margin: 0, gap: 12 }}>
+    <figure className="card stack" style={{ margin: 0, gap: 16 }}>
       <figcaption className="row between">
         <h3>{title}</h3>
-        <button className="btn ghost" style={{ whiteSpace: "nowrap", fontSize: 16 }} onClick={() => setShowTable((v) => !v)} aria-expanded={showTable}>
+        <button className="btn ghost" style={{ height: 28 }} onClick={() => setShowTable((v) => !v)} aria-expanded={showTable}>
           {showTable ? "Voir le graphique" : "Voir le tableau"}
         </button>
       </figcaption>
@@ -50,8 +50,8 @@ export function BarChart({ title, units, data }: { title: string; units: [string
           </tbody>
         </table>
       ) : (
-        <div style={{ position: "relative" }}>
-          <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={`${title} sur 14 jours`}>
+        <div style={{ position: "relative", overflowX: "auto" }}>
+          <svg style={{ minWidth: W }} viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={`${title} sur 14 jours`}>
             {ticks.map((t) => (
               <g key={t}>
                 <line className="chart-grid" x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} />
@@ -94,14 +94,25 @@ export function BarChart({ title, units, data }: { title: string; units: [string
               );
             })}
           </svg>
-          {hover !== null ? (
-            <div
-              className="tooltip"
-              style={{ left: `${((pad.l + hover * slot + slot / 2) / W) * 100}%`, top: `${(y(data[hover]!.value) / H) * 100}%` }}
-            >
-              <strong>{plural(data[hover]!.value)}</strong> · {label(data[hover]!.day)}
-            </div>
-          ) : null}
+          {hover !== null ? (() => {
+            const fx = (pad.l + hover * slot + slot / 2) / W;
+            const fy = y(data[hover]!.value) / H;
+            const edge = fx < 0.2 ? "start" : fx > 0.8 ? "end" : "mid";
+            const below = fy < 0.28;
+            const tx = edge === "start" ? "0" : edge === "end" ? "-100%" : "-50%";
+            return (
+              <div
+                className="tooltip"
+                style={{
+                  left: `clamp(8px, ${fx * 100}%, calc(100% - 8px))`,
+                  top: `${fy * 100}%`,
+                  transform: `translate(${tx}, ${below ? "10px" : "calc(-100% - 8px)"})`,
+                }}
+              >
+                <strong>{plural(data[hover]!.value)}</strong> · {label(data[hover]!.day)}
+              </div>
+            );
+          })() : null}
         </div>
       )}
     </figure>

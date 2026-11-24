@@ -1,22 +1,24 @@
 import { useState } from "react";
-import { ScrollView, View } from "react-native";
+import { View } from "react-native";
 import type { AlertSource, AlertSummary, Verdict } from "@vigie/shared";
 import { api } from "@/api";
 import { dayLabel } from "@/format";
 import { useLoad } from "@/useLoad";
 import { AlertRow } from "@/ui/AlertRow";
-import { Chip, Empty, Screen } from "@/ui/primitives";
+import { ChoiceField, Empty, Group, Screen } from "@/ui/primitives";
 import { Text } from "@/ui/Text";
-import { gutter, space } from "@/ui/theme";
+import { controlSeparation, space } from "@/ui/theme";
 
-const verdictFilters: Array<{ label: string; value?: Verdict }> = [
-  { label: "Tout" },
+type VerdictFilter = Verdict | "incomplete" | "all";
+const verdictFilters: Array<{ label: string; value: VerdictFilter }> = [
+  { label: "Tout", value: "all" },
   { label: "Arnaques", value: "scam" },
   { label: "Douteux", value: "suspicious" },
-  { label: "Rien d'anormal", value: "safe" },
+  { label: "À vérifier", value: "incomplete" },
+  { label: "Aucun signe détecté", value: "safe" },
 ];
-const sourceFilters: Array<{ label: string; value?: AlertSource; icon?: "mail" | "message" | "share" }> = [
-  { label: "Toutes sources" },
+const sourceFilters: Array<{ label: string; value: AlertSource | "all"; icon?: "mail" | "message" | "share" }> = [
+  { label: "Toutes", value: "all" },
   { label: "Mails", value: "mail", icon: "mail" },
   { label: "SMS", value: "sms", icon: "message" },
   { label: "WhatsApp", value: "whatsapp", icon: "message" },
@@ -24,9 +26,9 @@ const sourceFilters: Array<{ label: string; value?: AlertSource; icon?: "mail" |
 ];
 
 export default function History() {
-  const [verdict, setVerdict] = useState<Verdict | undefined>();
-  const [source, setSource] = useState<AlertSource | undefined>();
-  const { data } = useLoad(() => api.alerts({ verdict, source }), [verdict, source]);
+  const [verdict, setVerdict] = useState<VerdictFilter>("all");
+  const [source, setSource] = useState<AlertSource | "all">("all");
+  const { data, error, loading } = useLoad(() => api.alerts({ verdict: verdict === "all" ? undefined : verdict, source: source === "all" ? undefined : source }), [verdict, source]);
 
   const groups: Array<[string, AlertSummary[]]> = [];
   for (const a of data ?? []) {
@@ -38,29 +40,28 @@ export default function History() {
 
   return (
     <Screen title="Historique">
-      <View style={{ gap: space.sm + 4 }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -gutter }} contentContainerStyle={{ gap: space.sm, paddingHorizontal: gutter }}>
-          {verdictFilters.map((f) => (
-            <Chip key={f.label} label={f.label} selected={verdict === f.value} onPress={() => setVerdict(f.value)} />
-          ))}
-        </ScrollView>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -gutter }} contentContainerStyle={{ gap: space.sm, paddingHorizontal: gutter }}>
-          {sourceFilters.map((f) => (
-            <Chip key={f.label} label={f.label} icon={f.icon} selected={source === f.value} onPress={() => setSource(f.value)} />
-          ))}
-        </ScrollView>
+      <View style={{ gap: controlSeparation }}>
+        <ChoiceField title="Verdict" options={verdictFilters} value={verdict} onChange={setVerdict} />
+        <ChoiceField title="Source" options={sourceFilters} value={source} onChange={setSource} />
       </View>
 
-      {data && !data.length ? <Empty icon="search" title="Rien à afficher" text="Aucun message ne correspond à ce filtre." /> : null}
+      {error || loading ? (
+        <Text variant="caption" color="faint" accessibilityLiveRegion="polite" style={{ marginTop: space.md }}>
+          {error || "Chargement de l’historique…"}
+        </Text>
+      ) : null}
+      {!loading && !error && data && !data.length ? <Empty icon="search" title="Rien à afficher" text="Aucun message ne correspond à ce filtre." /> : null}
 
       {groups.map(([label, items]) => (
-        <View key={label} style={{ marginTop: space.xl, gap: space.sm + 4 }}>
-          <Text variant="label" color="soft" accessibilityRole="header">
+        <View key={label} style={{ marginTop: space.lg }}>
+          <Text variant="caption" color="faint" accessibilityRole="header" style={{ marginBottom: space.sm, marginLeft: space.xs }}>
             {label}
           </Text>
-          {items.map((a) => (
-            <AlertRow key={a.id} alert={a} />
-          ))}
+          <Group>
+            {items.map((a) => (
+              <AlertRow key={a.id} alert={a} />
+            ))}
+          </Group>
         </View>
       ))}
     </Screen>

@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>SmartSecure — 3 directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#E7E5EE;font-family:'Atkinson Hyperlegible Next',system-ui,sans-serif;padding:36px 40px 48px;width:1330px}
+.cols{display:grid;grid-template-columns:repeat(3,390px);gap:40px}
+.label{font-family:'Bricolage Grotesque';font-weight:800;font-size:30px;color:#15102E;margin-bottom:6px}
+.sub{font-size:17px;color:#5E5880;margin-bottom:18px;line-height:1.35;min-height:46px}
+.phone{width:390px;height:844px;border-radius:46px;overflow:hidden;position:relative;margin-bottom:32px;box-shadow:0 30px 60px -20px rgba(21,16,46,.35)}
+h1,h2,.d{font-family:'Bricolage Grotesque';letter-spacing:-.02em}
+.top{display:flex;justify-content:space-between;align-items:center;height:48px}
+.av{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:19px}
+.hello{font-size:19px}
+nav{position:absolute;left:20px;right:20px;bottom:22px;height:72px;border-radius:36px;display:grid;grid-template-columns:repeat(3,1fr);align-items:center;text-align:center;font-size:15px;font-weight:600}
+nav i{display:block;font-size:26px;margin-bottom:2px}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:15px;font-weight:700;padding:5px 12px;border-radius:99px}
+.btn{height:72px;border-radius:26px;display:flex;align-items:center;justify-content:center;gap:12px;font-weight:700;font-size:20px}
+.btn i{font-size:26px}
+
+/* A — Minuit */
+.A{background:#0D0B1A;color:#F3F1FF}
+.A .pad{padding:62px 24px 0}
+.A .hello{color:#A8A2C6}
+.A .av{background:#17142B;border:1px solid #2A2448}
+.A h1{font-size:44px;line-height:46px;font-weight:700;margin-top:22px}
+.A .chips{display:flex;gap:8px;margin-top:18px}
+.A .chips span{display:flex;align-items:center;gap:8px;height:40px;padding:0 14px;border-radius:20px;background:#17142B;border:1px solid #2A2448;font-size:17px}
+.A .chips b{width:9px;height:9px;border-radius:50%;background:#3DDC97}
+.A .cta{margin-top:26px;height:136px;border-radius:34px;padding:0 22px 0 26px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(120deg,#6A4DFF 0%,#B23CF5 55%,#FF6A3D 110%)}
+.A .cta strong{display:block;font-family:'Bricolage Grotesque';font-size:27px;line-height:30px;font-weight:700}
+.A .cta em{font-style:normal;font-size:17px;opacity:.9;display:block;margin-top:8px}
+.A .cta i{width:68px;height:68px;border-radius:50%;background:#fff;color:#6A4DFF;display:grid;place-items:center;font-size:32px}
+.A .tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.A .tiles div{height:128px;border-radius:28px;background:#17142B;border:1px solid #2A2448;padding:18px;display:flex;flex-direction:column;justify-content:space-between;font-weight:600;font-size:18px;line-height:22px}
+.A .tiles i{font-size:30px;color:#B7A8FF}
+.A h2{font-size:21px;font-weight:700;margin:24px 0 12px}
+.A .alert{border-radius:26px;background:#17142B;border:1px solid #2A2448;padding:16px 18px}
+.A .alert strong{display:block;font-size:18px;margin-top:8px}
+.A .alert em{font-style:normal;color:#A8A2C6;font-size:16px}
+.A .tag{background:#3A1620;color:#FF8B8B}
+.A nav{background:#17142B;border:1px solid #2A2448;color:#A8A2C6}
+.A nav .on{color:#fff}
+.A nav .on i{color:#B7A8FF}
+
+/* B — Plein jour */
+.B{background:#F4F1FF;color:#15102E}
+.B .pad{padding:62px 22px 0}
+.B .hello{color:#5E5880}
+.B .av{background:#15102E;color:#fff}
+.B h1{font-size:44px;line-height:46px;font-weight:800;margin-top:22px}
+.B .ok{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 16px 0 12px;border-radius:21px;background:#D6F5E3;color:#0B5D3B;font-weight:700;font-size:17px;margin-top:16px}
+.B .ok i{font-size:22px}
+.B .cta{margin-top:24px;height:172px;border-radius:38px;background:#6A4DFF;color:#fff;padding:22px 24px;display:flex;flex-direction:column;justify-content:space-between}
+.B .cta i{width:60px;height:60px;border-radius:50%;background:#fff;color:#6A4DFF;display:grid;place-items:center;font-size:30px}
+.B .cta strong{font-family:'Bricolage Grotesque';font-size:27px;line-height:30px;font-weight:700}
+.B .tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.B .tiles div{height:136px;border-radius:34px;padding:18px 20px;display:flex;flex-direction:column;justify-content:space-between;font-weight:700;font-size:19px;line-height:23px}
+.B .tiles i{font-size:32px}
+.B .t1{background:#FFDFD1;color:#5A1E08}
+.B .t2{background:#DDD3FF;color:#2A1773}
+.B .alert{margin-top:12px;border-radius:30px;background:#fff;padding:16px 20px}
+.B .alert strong{display:block;font-size:18px;margin-top:8px}
+.B .alert em{font-style:normal;color:#5E5880;font-size:16px}
+.B .tag{background:#FFE1DC;color:#B42318}
+.B nav{background:#15102E;color:#A9A3C9}
+.B nav .on{color:#fff}
+
+/* C — Aurore */
+.C{background:#fff;color:#15102E}
+.C .sky{height:372px;padding:62px 24px 0;color:#fff;background:linear-gradient(150deg,#6A4DFF 0%,#B23CF5 48%,#FF6A3D 100%)}
+.C .av{background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.5)}
+.C h1{font-size:44px;line-height:46px;font-weight:700;margin-top:24px}
+.C .sky p{font-size:19px;line-height:26px;margin-top:12px;max-width:300px}
+.C .sheet{position:absolute;left:0;right:0;top:322px;bottom:0;background:#fff;border-radius:40px 40px 0 0;padding:24px 22px 0}
+.C .cta{height:100px;border-radius:32px;background:#15102E;color:#fff;display:flex;align-items:center;gap:16px;padding:0 18px}
+.C .cta i{width:64px;height:64px;border-radius:50%;background:linear-gradient(140deg,#6A4DFF,#B23CF5 60%,#FF6A3D);display:grid;place-items:center;font-size:30px;flex:none}
+.C .cta strong{font-family:'Bricolage Grotesque';font-size:23px;line-height:26px;font-weight:700}
+.C .rows{margin-top:10px}
+.C .row{display:flex;align-items:center;gap:16px;height:84px;border-bottom:1px solid #ECE9F5;font-weight:600;font-size:19px}
+.C .row>i:first-child{width:54px;height:54px;border-radius:18px;background:#EFEBFF;color:#6A4DFF;display:grid;place-items:center;font-size:27px;flex:none}
+.C .row span{flex:1}
+.C .row>i:last-child{font-size:24px;color:#A9A3C9}
+.C .row small{display:block;font-size:16px;font-weight:400;color:#5E5880}
+.C .tag{background:#FFE1DC;color:#B42318}
+.C nav{left:0;right:0;bottom:0;height:86px;border-radius:0;border-top:1px solid #ECE9F5;background:#fff;color:#7B759B;padding-bottom:10px}
+.C nav .on{color:#6A4DFF}
+
+/* Faux appel */
+.A.bad .red{height:500px;background:#E5383B;border-radius:0 0 44px 44px;padding:96px 26px 0;color:#fff}
+.bad .ic{width:104px;height:104px;border-radius:50%;display:grid;place-items:center;font-size:56px}
+.A.bad .ic{background:#fff;color:#E5383B}
+.bad h1{font-size:58px;line-height:58px;font-weight:800;margin-top:28px}
+.bad .why{font-size:21px;line-height:29px;margin-top:14px}
+.bad .acts{position:absolute;left:22px;right:22px;bottom:34px;display:grid;gap:12px}
+.A.bad .b1{background:#fff;color:#0D0B1A}
+.A.bad .b2{background:#17142B;border:1px solid #2A2448;color:#F3F1FF}
+.bad .lnk{text-align:center;font-weight:700;font-size:18px;padding:14px 0 0}
+.A.bad .lnk{color:#B7A8FF}
+.B.bad{background:#FFE1DC}
+.B.bad .pad{padding-top:96px}
+.B.bad .ic{background:#D92D20;color:#fff}
+.B.bad .why{color:#5A1E08}
+.B.bad .b1{background:#D92D20;color:#fff}
+.B.bad .b2{background:#fff;color:#15102E}
+.B.bad .lnk{color:#B42318}
+.C.bad .sky{height:560px;padding-top:96px;background:linear-gradient(155deg,#B4123A 0%,#E5383B 50%,#FF6A3D 105%)}
+.C.bad .ic{background:rgba(255,255,255,.2);border:2px solid #fff;color:#fff}
+.C.bad .sheet{top:520px;padding-top:26px}
+.C.bad .b1{background:#15102E;color:#fff}
+.C.bad .b2{background:#F4F1FF;color:#15102E}
+.C.bad .acts{position:static}
+.C.bad .lnk{color:#6A4DFF}
+</style>
+</head>
+<body>
+<div class="cols">
+  <div>
+    <div class="label">A · Minuit</div>
+    <div class="sub">Sombre, aux couleurs exactes de SmartRemote. Le dégradé ne sert qu'au geste principal.</div>
+    <div class="phone A">
+      <div class="pad">
+        <div class="top"><span class="hello">Bonjour Jeanne</span><span class="av">J</span></div>
+        <h1>Vous êtes<br>protégée.</h1>
+        <div class="chips"><span><b></b>Appels</span><span><b></b>Messages</span><span><b></b>Mails</span></div>
+        <div class="cta"><div><strong>On m'appelle<br>de ma banque</strong><em>Vérifier cet appel</em></div><i class="ti ti-phone"></i></div>
+        <div class="tiles"><div><i class="ti ti-building-bank"></i><span>Rappeler<br>ma banque</span></div><div><i class="ti ti-message"></i><span>Vérifier<br>un message</span></div></div>
+        <h2>Dernière alerte</h2>
+        <div class="alert"><span class="tag"><i class="ti ti-alert-octagon"></i>Arnaque</span><strong>Remboursement en attente</strong><em>SMS · il y a 2 h</em></div>
+      </div>
+      <nav><div class="on"><i class="ti ti-shield-check"></i>Accueil</div><div><i class="ti ti-clock"></i>Historique</div><div><i class="ti ti-user"></i>Profil</div></nav>
+    </div>
+    <div class="phone A bad">
+      <div class="red">
+        <div class="ic"><i class="ti ti-phone-off"></i></div>
+        <h1>Raccrochez.</h1>
+        <p class="why">Votre banque n'a annoncé aucun appel. C'est peut-être un escroc.</p>
+      </div>
+      <div class="acts">
+        <div class="btn b1"><i class="ti ti-phone-off"></i>J'ai raccroché</div>
+        <div class="btn b2"><i class="ti ti-building-bank"></i>Rappeler ma banque</div>
+        <div class="lnk">Prévenir un proche</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="label">B · Plein jour</div>
+    <div class="sub">Clair, gros blocs de couleur, très lisible. Le plus simple pour un senior.</div>
+    <div class="phone B">
+      <div class="pad">
+        <div class="top"><span class="hello">Bonjour</span><span class="av">J</span></div>
+        <h1>Tout va bien,<br>Jeanne.</h1>
+        <div class="ok"><i class="ti ti-circle-check"></i>3 protections actives</div>
+        <div class="cta"><i class="ti ti-phone"></i><strong>On m'appelle<br>de ma banque</strong></div>
+        <div class="tiles"><div class="t1"><i class="ti ti-building-bank"></i><span>Rappeler<br>ma banque</span></div><div class="t2"><i class="ti ti-message"></i><span>Vérifier<br>un message</span></div></div>
+        <div class="alert"><span class="tag"><i class="ti ti-alert-octagon"></i>Arnaque</span><strong>Remboursement en attente</strong><em>SMS · il y a 2 h</em></div>
+      </div>
+      <nav><div class="on"><i class="ti ti-shield-check"></i>Accueil</div><div><i class="ti ti-clock"></i>Historique</div><div><i class="ti ti-user"></i>Profil</div></nav>
+    </div>
+    <div class="phone B bad">
+      <div class="pad">
+        <div class="ic"><i class="ti ti-phone-off"></i></div>
+        <h1>Raccrochez.</h1>
+        <p class="why">Votre banque n'a annoncé aucun appel. C'est peut-être un escroc.</p>
+      </div>
+      <div class="acts">
+        <div class="btn b1"><i class="ti ti-phone-off"></i>J'ai raccroché</div>
+        <div class="btn b2"><i class="ti ti-building-bank"></i>Rappeler ma banque</div>
+        <div class="lnk">Prévenir un proche</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="label">C · Aurore</div>
+    <div class="sub">Le dégradé de ton logo en grand, puis une feuille blanche nette pour agir.</div>
+    <div class="phone C">
+      <div class="sky">
+        <div class="top"><span class="hello">Bonjour Jeanne</span><span class="av">J</span></div>
+        <h1>Vous êtes<br>protégée.</h1>
+        <p>Appels, messages et mails sont surveillés.</p>
+      </div>
+      <div class="sheet">
+        <div class="cta"><i class="ti ti-phone"></i><strong>On m'appelle<br>de ma banque</strong></div>
+        <div class="rows">
+          <div class="row"><i class="ti ti-building-bank"></i><span>Rappeler ma banque</span><i class="ti ti-chevron-right"></i></div>
+          <div class="row"><i class="ti ti-message"></i><span>Vérifier un message</span><i class="ti ti-chevron-right"></i></div>
+          <div class="row" style="border:0"><i class="ti ti-alert-octagon" style="background:#FFE1DC;color:#B42318"></i><span>Remboursement en attente<small>Arnaque · SMS · il y a 2 h</small></span><i class="ti ti-chevron-right"></i></div>
+        </div>
+      </div>
+      <nav><div class="on"><i class="ti ti-shield-check"></i>Accueil</div><div><i class="ti ti-clock"></i>Historique</div><div><i class="ti ti-user"></i>Profil</div></nav>
+    </div>
+    <div class="phone C bad">
+      <div class="sky">
+        <div class="ic"><i class="ti ti-phone-off"></i></div>
+        <h1>Raccrochez.</h1>
+        <p class="why">Votre banque n'a annoncé aucun appel. C'est peut-être un escroc.</p>
+      </div>
+      <div class="sheet">
+        <div class="acts">
+          <div class="btn b1"><i class="ti ti-phone-off"></i>J'ai raccroché</div>
+          <div class="btn b2"><i class="ti ti-building-bank"></i>Rappeler ma banque</div>
+          <div class="lnk">Prévenir un proche</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

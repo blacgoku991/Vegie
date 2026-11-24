@@ -1,5 +1,5 @@
 import { readdir, readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 import { pool } from "./pool.ts";
 
@@ -31,7 +31,8 @@ export async function migrate(): Promise<string[]> {
   return applied;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// pathToFileURL : sous Windows, argv[1] vaut « C:\… » et `file://${argv[1]}` ne correspond jamais.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const applied = await migrate();
   console.log(applied.length ? `Migrations appliquées : ${applied.join(", ")}` : "Base à jour.");
   await pool.end();

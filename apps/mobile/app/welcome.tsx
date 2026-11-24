@@ -1,47 +1,34 @@
 import { View } from "react-native";
 import { router } from "expo-router";
-import type { IconName } from "@vigie/shared";
+import { Logo } from "@/ui/Brand";
 import { Button } from "@/ui/Button";
-import { Icon } from "@/ui/Icon";
-import { FadeIn, Orb } from "@/ui/Orb";
-import { Screen } from "@/ui/primitives";
+import { FadeIn } from "@/ui/Orb";
+import { Group, ListRow, Screen } from "@/ui/primitives";
 import { Text } from "@/ui/Text";
-import { palette, space } from "@/ui/theme";
+import { space } from "@/ui/theme";
 
+/** Bienvenue : le logo, une phrase, trois raisons, un bouton. */
 export default function Welcome() {
   return (
-    <Screen footer={<Button size="hero" label="Commencer" onPress={() => router.push("/login")} />}>
-      <View style={{ alignItems: "center", gap: space.lg, paddingTop: space.xxl }}>
-        <FadeIn>
-          <Orb size={240} />
-        </FadeIn>
-        <FadeIn delay={120} style={{ gap: space.md, alignItems: "center" }}>
-          <Text variant="display" align="center" accessibilityRole="header">
-            SmartSecure veille{"\n"}sur vous.
+    <Screen footer={<Button label="Commencer" onPress={() => router.push("/login")} />}>
+      <FadeIn style={{ alignItems: "center", marginTop: space.xxl, gap: space.md }}>
+        <Logo size={72} />
+        <View style={{ alignItems: "center", gap: 6 }}>
+          <Text variant="title" align="center" accessibilityRole="header">
+            SmartSecure
           </Text>
-          <Text color="soft" align="center" style={{ maxWidth: 320 }}>
-            Appels, mails, SMS : SmartSecure repère les arnaques avant qu'elles ne vous atteignent.
+          <Text color="faint" align="center" style={{ maxWidth: 300 }}>
+            Sachez qui vous appelle vraiment, et vérifiez un message avant d’y répondre.
           </Text>
-        </FadeIn>
-      </View>
-      <FadeIn delay={240} style={{ gap: space.lg, marginTop: space.xxl }}>
-        <Benefit icon="phone" title="Les appels de votre banque, certifiés" />
-        <Benefit icon="mail" title="Chaque mail et SMS vérifié" />
-        <Benefit icon="heart" title="Un proche prévenu en cas de doute" />
+        </View>
+      </FadeIn>
+      <FadeIn delay={80} style={{ marginTop: space.xl }}>
+        <Group>
+          <ListRow icon="phoneIn" title="Les appels de votre banque" subtitle="Annoncés à l’avance par votre conseiller" />
+          <ListRow icon="message" title="Les messages douteux" subtitle="Vérifiés avant que vous répondiez" />
+          <ListRow icon="heart" title="Un proche à vos côtés" subtitle="Prévenu en un geste en cas de doute" />
+        </Group>
       </FadeIn>
     </Screen>
-  );
-}
-
-function Benefit({ icon, title }: { icon: IconName; title: string }) {
-  return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
-      <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: palette.accentSoft, alignItems: "center", justifyContent: "center" }}>
-        <Icon name={icon} color={palette.accent} size={26} />
-      </View>
-      <Text variant="bodyStrong" style={{ flex: 1 }}>
-        {title}
-      </Text>
-    </View>
   );
 }

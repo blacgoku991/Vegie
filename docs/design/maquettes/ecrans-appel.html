@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>SmartSecure — ce que voit le client pendant l'appel</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.31.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#E4E4E8;font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased;padding:0;width:1040px}
+section{padding:40px 50px 44px;width:1040px}
+h2{font-size:26px;font-weight:700;color:#111;margin-bottom:6px}
+.lead{font-size:16px;color:#55555C;margin-bottom:26px;line-height:1.4}
+.row{display:flex;gap:60px;justify-content:center}
+.col{width:414px}
+.cap{font-size:17px;font-weight:600;color:#111;text-align:center;margin-top:18px}
+.cap small{display:block;font-weight:400;font-size:14.5px;color:#55555C;margin-top:4px;line-height:1.35}
+
+.dev{width:414px;height:868px;padding:12px;background:#0b0b0c;box-shadow:0 0 0 2px #3a3a3e,0 40px 70px -30px rgba(0,0,0,.6);position:relative}
+.scr{width:390px;height:844px;overflow:hidden;position:relative;color:#fff}
+.sb{position:absolute;top:0;left:0;right:0;height:54px;display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:17px;z-index:3}
+.sb span{display:flex;gap:6px;font-size:18px;align-items:center}
+
+/* iPhone */
+.ios .dev{border-radius:66px}
+.ios .scr{border-radius:54px;background:#0c0d14;background-image:radial-gradient(110% 55% at 15% 8%,#4a5a94 0%,transparent 62%),radial-gradient(90% 50% at 95% 28%,#7a4578 0%,transparent 60%),radial-gradient(120% 60% at 50% 105%,#1f4a5c 0%,transparent 66%)}
+.ios .scr::after{content:"";position:absolute;inset:0;background:rgba(6,6,12,.42)}
+.ios .scr>*{z-index:2}
+.ios .sb{padding:6px 34px 0 52px}
+.island{position:absolute;top:11px;left:50%;width:124px;height:36px;margin-left:-62px;border-radius:20px;background:#000;z-index:4}
+.ios .who{position:absolute;top:128px;left:16px;right:16px;text-align:center}
+.ios .num{font-size:36px;font-weight:500;letter-spacing:.2px}
+.ios .lab{font-size:16px;margin-top:8px;color:rgba(255,255,255,.78);line-height:1.35}
+.ios .lab b{font-weight:600;color:#fff}
+.ios .opts{position:absolute;left:42px;right:42px;bottom:158px;display:flex;justify-content:space-between;text-align:center;font-size:13.5px;color:rgba(255,255,255,.92)}
+.ios .opts i{display:block;font-size:26px;margin-bottom:6px}
+.ios .slide{position:absolute;left:26px;right:26px;bottom:58px;height:80px;border-radius:40px;background:rgba(255,255,255,.2);display:flex;align-items:center;padding:6px}
+.ios .knob{width:68px;height:68px;border-radius:50%;background:#fff;color:#30B94D;display:grid;place-items:center;font-size:32px;flex:none}
+.ios .slide span{flex:1;text-align:center;font-size:21px;color:rgba(255,255,255,.62);padding-right:30px}
+.ios .home{position:absolute;bottom:9px;left:50%;width:138px;height:5px;margin-left:-69px;border-radius:3px;background:#fff}
+
+/* Android */
+.and{font-family:Roboto,system-ui,sans-serif}
+.and h2,.and .lead,.and .cap{font-family:Inter,system-ui,sans-serif}
+.and .dev{border-radius:52px}
+.and .scr{border-radius:42px;background:#101216;background-image:radial-gradient(120% 50% at 50% 0%,#232a3a 0%,transparent 70%)}
+.and .sb{padding:4px 26px 0 28px;font-weight:500;font-size:15px}
+.hole{position:absolute;top:16px;left:50%;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#000;z-index:4;box-shadow:0 0 0 2px #1b1d22}
+.and .who{position:absolute;top:92px;left:0;right:0;text-align:center}
+.and .who small{font-size:14.5px;color:#C4C7CF}
+.and .num{font-size:34px;margin-top:6px;letter-spacing:.3px}
+.and .loc{font-size:15px;color:#C4C7CF;margin-top:4px}
+.and .ans{position:absolute;left:0;right:0;bottom:92px;text-align:center;font-size:14.5px;color:#C4C7CF}
+.and .ring{width:84px;height:84px;border-radius:50%;background:#fff;color:#1E8E3E;display:grid;place-items:center;font-size:36px;margin:18px auto;box-shadow:0 0 0 14px rgba(255,255,255,.07),0 0 0 30px rgba(255,255,255,.035)}
+.and .msg{position:absolute;left:22px;bottom:34px;font-size:14px;color:#E3E3E8;display:flex;gap:8px;align-items:center}
+.and .msg i{font-size:20px}
+.and .bar{position:absolute;bottom:8px;left:50%;width:110px;height:4px;margin-left:-55px;border-radius:2px;background:#8E9199}
+
+/* Popup SmartSecure (Android) */
+.pop{position:absolute;left:14px;right:14px;top:232px;border-radius:28px;padding:18px 18px 20px;font-family:Inter,system-ui,sans-serif;box-shadow:0 24px 48px -12px rgba(0,0,0,.7)}
+.pop.ok{background:#157A37}
+.pop.ko{background:#D92D20}
+.pop .brand{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;opacity:.95}
+.pop .brand img{width:24px;height:24px;border-radius:6px}
+.pop .brand i{margin-left:auto;font-size:20px;opacity:.85}
+.pop .t{display:flex;align-items:center;gap:10px;font-size:25px;font-weight:700;margin-top:14px;letter-spacing:-.3px}
+.pop .t i{width:36px;height:36px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:22px;flex:none}
+.pop.ok .t i{color:#157A37}.pop.ko .t i{color:#D92D20}
+.pop .n{font-size:19px;font-weight:600;margin-top:12px}
+.pop .d{font-size:15.5px;line-height:1.4;margin-top:3px;opacity:.95}
+.pop .rule{margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.28);font-size:14.5px;line-height:1.4}
+.pop .acts{display:flex;gap:10px;margin-top:16px}
+.pop .acts div{flex:1;height:50px;border-radius:14px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600;font-size:16px}
+.pop .acts .w{background:#fff;color:#B3261E}
+.pop .acts .g{background:rgba(255,255,255,.2);color:#fff;font-size:14.5px;text-align:center;line-height:1.2;padding:0 8px}
+</style>
+</head>
+<body>
+
+<section class="ios" id="ios">
+  <h2>iPhone · écran d'appel normal, téléphone verrouillé, app fermée</h2>
+  <p class="lead">SmartSecure ajoute une ligne sous le numéro. C'est iOS qui choisit sa place et sa taille.</p>
+  <div class="row">
+    <div class="col">
+      <div class="dev"><div class="scr">
+        <div class="island"></div>
+        <div class="sb">14:33<span><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="who"><div class="num">01 99 00 12 34</div><div class="lab">SmartSecure : <b>✓ Certifié Banque Horizon · 14:42</b></div></div>
+        <div class="opts"><div><i class="ti ti-alarm"></i>Rappel</div><div><i class="ti ti-message-circle"></i>Message</div></div>
+        <div class="slide"><div class="knob"><i class="ti ti-phone"></i></div><span>glisser pour répondre</span></div>
+        <div class="home"></div>
+      </div></div>
+      <div class="cap">Le vrai conseiller appelle<small>L'étiquette n'existe que sur ce téléphone, pendant l'annonce. « 14:42 » est l'heure de fin de validité.</small></div>
+    </div>
+    <div class="col">
+      <div class="dev"><div class="scr">
+        <div class="island"></div>
+        <div class="sb">16:07<span><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="who"><div class="num">01 99 00 00 00</div><div class="lab">SmartSecure : <b>⚠ Banque Horizon, aucun appel annoncé</b></div></div>
+        <div class="opts"><div><i class="ti ti-alarm"></i>Rappel</div><div><i class="ti ti-message-circle"></i>Message</div></div>
+        <div class="slide"><div class="knob"><i class="ti ti-phone"></i></div><span>glisser pour répondre</span></div>
+        <div class="home"></div>
+      </div></div>
+      <div class="cap">Un escroc usurpe le numéro de la banque<small>Le numéro public de la banque porte toujours cet avertissement : la banque n'appelle jamais sans annonce.</small></div>
+    </div>
+  </div>
+</section>
+
+<section class="and" id="android">
+  <h2>Android · grand popup par-dessus l'appel, app fermée</h2>
+  <p class="lead">Ici SmartSecure dessine lui-même le popup : taille, couleur et boutons sont à nous.</p>
+  <div class="row">
+    <div class="col">
+      <div class="dev"><div class="scr">
+        <div class="hole"></div>
+        <div class="sb">14:33<span><i class="ti ti-wifi"></i><i class="ti ti-antenna-bars-5"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="who"><small>Appel entrant</small><div class="num">01 99 00 12 34</div><div class="loc">France</div></div>
+        <div class="pop ok">
+          <div class="brand"><img src="../../../apps/mobile/assets/logo/smartsecure-icon.svg" alt="">SmartSecure<i class="ti ti-x"></i></div>
+          <div class="t"><i class="ti ti-check"></i>Appel certifié</div>
+          <div class="n">Claire Martin · Banque Horizon</div>
+          <div class="d">Agence Lyon Bellecour<br>Motif : point sur votre épargne</div>
+          <div class="rule">Même votre conseiller ne vous demandera jamais un code.</div>
+        </div>
+        <div class="ans">Balayer vers le haut pour répondre<div class="ring"><i class="ti ti-phone"></i></div>Balayer vers le bas pour refuser</div>
+        <div class="msg"><i class="ti ti-message"></i>Message</div>
+        <div class="bar"></div>
+      </div></div>
+      <div class="cap">Le vrai conseiller appelle<small>Le popup vert apparaît pendant la sonnerie, avec le nom du conseiller et le motif.</small></div>
+    </div>
+    <div class="col">
+      <div class="dev"><div class="scr">
+        <div class="hole"></div>
+        <div class="sb">16:07<span><i class="ti ti-wifi"></i><i class="ti ti-antenna-bars-5"></i><i class="ti ti-battery-3"></i></span></div>
+        <div class="who"><small>Appel entrant</small><div class="num">01 99 00 00 00</div><div class="loc">France</div></div>
+        <div class="pop ko">
+          <div class="brand"><img src="../../../apps/mobile/assets/logo/smartsecure-icon.svg" alt="">SmartSecure<i class="ti ti-x"></i></div>
+          <div class="t"><i class="ti ti-alert-triangle"></i>Appel non certifié</div>
+          <div class="d" style="margin-top:12px">Ce numéro se présente comme <b>Banque Horizon</b>, mais votre banque n'a annoncé aucun appel.</div>
+          <div class="acts"><div class="w"><i class="ti ti-phone-off"></i>Raccrocher</div><div class="g">Rappeler ma banque</div></div>
+        </div>
+        <div class="ans">Balayer vers le haut pour répondre<div class="ring"><i class="ti ti-phone"></i></div>Balayer vers le bas pour refuser</div>
+        <div class="msg"><i class="ti ti-message"></i>Message</div>
+        <div class="bar"></div>
+      </div></div>
+      <div class="cap">Un escroc usurpe le numéro de la banque<small>Popup rouge avec un bouton pour raccrocher. En option, l'appel est rejeté avant même de sonner.</small></div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

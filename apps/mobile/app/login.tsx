@@ -1,16 +1,20 @@
 import { useState } from "react";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { normalizePhone } from "@vigie/shared";
-import { api } from "@/api";
+import { api, ApiError } from "@/api";
+import { groupPhoneInput } from "@/format";
+import { RESEND_DELAY, useCountdown } from "@/useCountdown";
 import { Button } from "@/ui/Button";
-import { Field, Screen } from "@/ui/primitives";
+import { Card, Field, Screen } from "@/ui/primitives";
 import { Text } from "@/ui/Text";
 import { space } from "@/ui/theme";
 
 export default function Login() {
+  const { invite } = useLocalSearchParams<{ invite?: string }>();
   const [phone, setPhone] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const wait = useCountdown();
   const valid = !!normalizePhone(phone)?.startsWith("+");
 
   const send = async () => {
@@ -18,30 +22,45 @@ export default function Login() {
     setError(null);
     try {
       await api.startAuth(phone);
-      router.push({ pathname: "/code", params: { phone } });
+      router.push({ pathname: "/code", params: { phone, invite } });
     } catch (err) {
-      setError((err as Error).message);
+      // « Un code vient d'être envoyé » n'est pas une faute de saisie : on propose de saisir le code déjà reçu.
+      if (err instanceof ApiError && err.code === "too_soon") wait.start(RESEND_DELAY);
+      else setError((err as Error).message);
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <Screen back title="Votre numéro de portable" footer={<Button label="Recevoir mon code" disabled={!valid} loading={busy} onPress={() => void send()} />}>
+    <Screen back title="Votre numéro de portable" footer={<Button label="Recevoir mon code" disabled={!valid || wait.left > 0} loading={busy} onPress={() => void send()} />}>
       <Text color="soft" style={{ marginBottom: space.lg }}>
         SmartSecure vous envoie un code par SMS pour vérifier que ce téléphone est bien le vôtre.
       </Text>
       <Field
         label="Numéro de portable"
+        numeric
         placeholder="06 12 34 56 78"
         value={phone}
-        onChangeText={setPhone}
+        onChangeText={(v) => setPhone(groupPhoneInput(v))}
         keyboardType="phone-pad"
         autoComplete="tel"
         textContentType="telephoneNumber"
         error={error}
         autoFocus
       />
+      {wait.left > 0 ? (
+        <Card style={{ gap: space.md, marginTop: space.lg }}>
+          <Text accessibilityLiveRegion="polite">
+            Un code vient déjà d’être envoyé à ce numéro. Vous pourrez en demander un autre dans {wait.left} s.
+          </Text>
+          <Button
+            variant="secondary"
+            label="Saisir le code déjà reçu"
+            onPress={() => router.push({ pathname: "/code", params: { phone, invite, wait: String(wait.left) } })}
+          />
+        </Card>
+      ) : null}
     </Screen>
   );
 }

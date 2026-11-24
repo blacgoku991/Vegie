@@ -88,13 +88,14 @@ export async function analyze(input: MessageInput, opts: AnalyzeOptions): Promis
 
   // Contrôles importants qui n'ont pas pu avoir lieu : on ne conclura jamais « sûr » en vert.
   const missingChecks: string[] = [];
+  if (links.some(l => !officialBrandForDomain(l.host) && !candidates.some(c => c.url === l.url))) missingChecks.push("reputation");
   if (candidates.length) {
     if (reputation.length < candidates.length) missingChecks.push("reputation");
     else {
       if (reputation.some((r) => !r.webRiskChecked)) missingChecks.push("web_risk");
       if (reputation.some((r) => r.ageDays == null)) missingChecks.push("domain_age");
     }
-    if (sites.length < Math.min(candidates.length, 2)) missingChecks.push("site_visit");
+    if (sites.length < candidates.length) missingChecks.push("site_visit");
   }
   if (opts.deep && aiEnabled() && !ai) missingChecks.push("ai");
 
@@ -142,9 +143,9 @@ export function checksFor(result: AnalysisResult, input: { hasSender: boolean; d
         : { status: "ok", detail: "Les liens ne sont pas connus comme dangereux." },
     site: !hasLinks
       ? { status: "ok", detail: "Aucun site à vérifier." }
-      : visited
+      : visited && !result.missingChecks.includes("site_visit")
         ? { status: "ok", detail: "Le site visité n'imite aucune marque connue." }
-        : { status: "unknown", detail: "Le site n'a pas été visité." },
+        : { status: "unknown", detail: "Aucune vérification complète des sites n’est disponible." },
     text: { status: "ok", detail: "Le ton du message est normal." },
   };
   return buildChecks(result.findings, defaults);
@@ -195,6 +196,6 @@ function buildFacts(
 }
 
 function titleFor(input: MessageInput): string {
-  const base = (input.subject || input.text).replace(/\s+/g, " ").trim();
-  return base.length > 70 ? base.slice(0, 67).trimEnd() + "…" : base || "Message sans objet";
+  const base = (input.subject || "").replace(/\s+/g, " ").trim();
+  return base.length > 70 ? base.slice(0, 67).trimEnd() + "…" : base || ({ sms: "SMS analysé", whatsapp: "Message WhatsApp", mail: "Mail sans objet", share: "Message partagé", messaging: "Message analysé", call: "Appel" } as const)[input.source];
 }

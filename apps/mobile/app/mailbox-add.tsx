@@ -8,7 +8,8 @@ import { Button } from "@/ui/Button";
 import { Icon } from "@/ui/Icon";
 import { Card, Field, Screen } from "@/ui/primitives";
 import { Text } from "@/ui/Text";
-import { palette, space, tones } from "@/ui/theme";
+import { space } from "@/ui/theme";
+import { useTheme } from "@/ui/ThemeProvider";
 
 const outlookDomains = ["outlook.fr", "outlook.com", "hotmail.fr", "hotmail.com", "live.fr", "live.com", "msn.com"];
 const gmailDomains = ["gmail.com", "googlemail.com"];
@@ -18,6 +19,7 @@ const gmailDomains = ["gmail.com", "googlemail.com"];
  * et ne demande le mot de passe que si c'est nécessaire.
  */
 export default function MailboxAdd() {
+  const { palette, tones } = useTheme();
   const { data: providers } = useLoad(() => api.providers());
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

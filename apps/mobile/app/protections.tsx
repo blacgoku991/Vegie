@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Platform, View } from "react-native";
+import { AppState, Platform, View } from "react-native";
 import { useFocusEffect } from "expo-router";
 import type { IconName } from "@vigie/shared";
 import { api } from "@/api";
@@ -9,7 +9,8 @@ import { Button } from "@/ui/Button";
 import { Icon } from "@/ui/Icon";
 import { Card, Screen, ToggleRow, ToneBadge } from "@/ui/primitives";
 import { Text } from "@/ui/Text";
-import { palette, space } from "@/ui/theme";
+import { space } from "@/ui/theme";
+import { useTheme } from "@/ui/ThemeProvider";
 
 /** Activation guidée des protections du téléphone, une carte = une protection. */
 export default function Protections() {
@@ -18,7 +19,11 @@ export default function Protections() {
 
   useFocusEffect(
     useCallback(() => {
-      void protection.status().then(setStatus);
+      let active = true;
+      const refresh = () => void protection.status().then(s => { if (active) setStatus(s); }).catch(() => { if (active) setStatus(null); });
+      refresh();
+      const sub = AppState.addEventListener("change", state => { if (state === "active") refresh(); });
+      return () => { active = false; sub.remove(); };
     }, []),
   );
 
@@ -33,7 +38,7 @@ export default function Protections() {
 
   return (
     <Screen back title="Appels et messages">
-      <Text color="soft">Activez ces protections une seule fois. Ensuite, SmartSecure travaille tout seul.</Text>
+      <Text color="soft">Vérifiez les réglages disponibles sur votre téléphone.</Text>
 
       <View style={{ gap: space.md, marginTop: space.lg }}>
         {android ? (
@@ -41,14 +46,14 @@ export default function Protections() {
             <Feature
               icon="phone"
               title="Filtrer les appels"
-              text="SmartSecure reconnaît les appels annoncés par votre banque et signale les faux, avant même de décrocher."
+              text="SmartSecure compare le numéro entrant à la ligne annoncée par votre conseiller."
               enabled={status?.callScreening === "enabled"}
               action={<Button label="Activer" onPress={() => void protection.enableCallScreening().then(() => protection.status().then(setStatus))} />}
             />
             {status?.callScreening === "enabled" && me ? (
               <ToggleRow
                 title="Raccrocher automatiquement"
-                subtitle="Les faux appels de banque et les numéros signalés sont rejetés sans sonner."
+                subtitle="Les appels depuis un numéro public de banque partenaire sans annonce vérifiée peuvent être rejetés. Les signalements des utilisateurs déclenchent un avertissement."
                 value={me.settings.autoHangup}
                 onChange={(v) => void setAutoHangup(v)}
               />
@@ -56,9 +61,9 @@ export default function Protections() {
             <Feature
               icon="message"
               title="Surveiller SMS et WhatsApp"
-              text="SmartSecure vérifie les messages qui contiennent un lien ou une demande d'argent. Les autres ne quittent pas votre téléphone."
+              text="Avec votre accord, le nom de l’expéditeur et le texte des notifications contenant un lien, un numéro ou une demande sensible sont envoyés au serveur pour analyse."
               enabled={status?.notificationListener === "enabled"}
-              action={<Button label="Ouvrir le réglage" onPress={() => protection.openMessageAccess()} />}
+              action={<Button label="Autoriser dans les réglages" onPress={() => protection.openMessageAccess()} />}
             />
           </>
         ) : null}
@@ -100,10 +105,11 @@ export default function Protections() {
 }
 
 function Feature({ icon, title, text, enabled, action, steps }: { icon: IconName; title: string; text: string; enabled?: boolean; action?: React.ReactNode; steps?: string }) {
+  const { palette } = useTheme();
   return (
     <Card style={{ gap: space.md }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
-        <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: palette.accentSoft, alignItems: "center", justifyContent: "center" }}>
+        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: palette.surfaceHigh, alignItems: "center", justifyContent: "center" }}>
           <Icon name={icon} color={palette.accent} />
         </View>
         <Text variant="heading" style={{ flex: 1 }}>

@@ -10,6 +10,9 @@ export interface IconPath {
 }
 
 export const iconPaths: Record<IconName, IconPath> = {
+  bell: { d: ["M6 16v-5a6 6 0 0112 0v5l1.5 2.5h-15L6 16z", "M10 21a2.2 2.2 0 004 0"] },
+  phoneIn: { d: ["M5 4h3l2 5-2.5 1.5a11 11 0 005 5L14 13l5 2v3a2 2 0 01-2 2A16 16 0 013 6a2 2 0 012-2z", "M20 4l-5 5", "M15 5v4h4"] },
+  settings: { d: ["M4 7h9", "M17 7h3", "M4 17h3", "M11 17h9"], circles: [[15, 7, 2], [9, 17, 2]] },
   shield: { d: ["M12 3l7 3v5c0 4.5-3 8.4-7 10-4-1.6-7-5.5-7-10V6l7-3z", "M8.8 12.2l2.2 2.2 4.3-4.6"] },
   check: { d: ["M5 12.5l4.5 4.5L19 7.5"] },
   alert: { d: ["M12 4l9 16H3L12 4z", "M12 10v4", "M12 17v.4"] },

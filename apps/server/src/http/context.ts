@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { one } from "../db/pool.ts";
+import { one, pool, type Queryable } from "../db/pool.ts";
 import { randomToken, sha256 } from "../lib/crypto.ts";
 import { isProd } from "../config.ts";
 
@@ -32,12 +32,12 @@ function bearer(req: FastifyRequest): string | null {
   return h?.startsWith("Bearer ") ? h.slice(7) : null;
 }
 
-export async function createSession(kind: "user" | "advisor", id: string, days: number): Promise<string> {
+export async function createSession(kind: "user" | "advisor", id: string, days: number, db: Queryable = pool): Promise<string> {
   const token = randomToken();
   await one(
     `insert into sessions (token_hash, ${kind === "user" ? "user_id" : "advisor_id"}, expires_at)
      values ($1, $2, now() + ($3 || ' days')::interval)`,
-    [sha256(token), id, String(days)],
+    [sha256(token), id, String(days)], db,
   );
   return token;
 }
@@ -59,29 +59,67 @@ export async function requireUser(req: FastifyRequest): Promise<string> {
   throw new HttpError(401, "unauthorized", "Session expirée. Reconnectez-vous.");
 }
 
-export interface AdvisorCtx {
+export type StaffRole = "superadmin" | "bank_admin" | "advisor";
+
+export interface StaffCtx {
   id: string;
-  bankId: string;
+  role: StaffRole;
+  /** null pour le superadmin. */
+  bankId: string | null;
   name: string;
   agency: string;
+  agencyId: string | null;
   email: string;
   outboundNumber: string | null;
   bankName: string;
 }
 
-/** Conseiller bancaire (cookie httpOnly posé par la console). */
-export async function requireAdvisor(req: FastifyRequest): Promise<AdvisorCtx> {
+/** Membre d'une banque (conseiller ou responsable) : `bankId` est toujours défini. */
+export interface AdvisorCtx extends StaffCtx {
+  bankId: string;
+}
+
+export const staffSelect = `
+  select a.id, a.role, a.bank_id as "bankId", a.name, coalesce(ag.name, a.agency, '') as agency, a.agency_id as "agencyId",
+         a.email, a.outbound_number as "outboundNumber", coalesce(b.name, 'SmartSecure') as "bankName"`;
+
+/** Session de console valide d'un compte ACTIF, quel que soit son rôle. */
+export async function requireStaff(req: FastifyRequest): Promise<StaffCtx> {
   const token = readCookie(req, CONSOLE_COOKIE);
   if (token) {
-    const row = await one<AdvisorCtx>(
-      `select a.id, a.bank_id as "bankId", a.name, a.agency, a.email, a.outbound_number as "outboundNumber", b.name as "bankName"
-       from sessions s join advisors a on a.id = s.advisor_id join banks b on b.id = a.bank_id
-       where s.token_hash = $1 and s.expires_at > now()`,
+    const row = await one<StaffCtx>(
+      `${staffSelect}
+       from sessions s join advisors a on a.id = s.advisor_id
+       left join banks b on b.id = a.bank_id left join agencies ag on ag.id = a.agency_id
+       where s.token_hash = $1 and s.expires_at > now() and a.active`,
       [sha256(token)],
     );
     if (row) return row;
   }
   throw new HttpError(401, "unauthorized", "Session expirée. Reconnectez-vous.");
+}
+
+const forbidden = (message = "Vous n'avez pas les droits pour cette action.") => new HttpError(403, "forbidden", message);
+
+/** Conseiller ou responsable d'une banque : les routes « métier » sont limitées à SA banque (ctx.bankId). */
+export async function requireAdvisor(req: FastifyRequest): Promise<AdvisorCtx> {
+  const staff = await requireStaff(req);
+  if (staff.role === "superadmin" || !staff.bankId) throw forbidden("Ce compte n'est rattaché à aucune banque.");
+  return staff as AdvisorCtx;
+}
+
+/** Responsable d'une banque : gère les comptes, les agences et les réglages de SA banque. */
+export async function requireBankAdmin(req: FastifyRequest): Promise<AdvisorCtx> {
+  const staff = await requireAdvisor(req);
+  if (staff.role !== "bank_admin") throw forbidden("Seul le responsable de la banque peut faire cela.");
+  return staff;
+}
+
+/** Équipe SmartSecure : gère les banques. */
+export async function requireSuperadmin(req: FastifyRequest): Promise<StaffCtx> {
+  const staff = await requireStaff(req);
+  if (staff.role !== "superadmin") throw forbidden();
+  return staff;
 }
 
 export function consoleToken(req: FastifyRequest) {

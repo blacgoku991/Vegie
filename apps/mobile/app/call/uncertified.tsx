@@ -1,151 +1,136 @@
 import { useEffect, useState } from "react";
-import { Linking, Platform, Pressable, StyleSheet, View } from "react-native";
+import { Linking, Platform } from "react-native";
 import { router } from "expo-router";
 import * as SMS from "expo-sms";
-import { formatPhone, type Bank } from "@vigie/shared";
+import { formatPhone, normalizePhone } from "@vigie/shared";
 import { api } from "@/api";
 import { callState } from "@/callState";
 import { protection } from "@/protection";
-import { Button } from "@/ui/Button";
-import { Icon } from "@/ui/Icon";
-import { Card } from "@/ui/primitives";
+import { Button, RoundAction } from "@/ui/Button";
+import { Group, ListRow } from "@/ui/primitives";
 import { Text } from "@/ui/Text";
-import { palette, space, tones } from "@/ui/theme";
-import { VerdictScreen } from "@/ui/VerdictScreen";
+import { controls } from "@/ui/theme";
+import { CallActions, VerdictScreen } from "@/ui/VerdictScreen";
 
 export default function CallUncertified() {
   const state = callState.get();
-  const [banks, setBanks] = useState<Bank[]>(state?.banks ?? []);
   const [canEnd, setCanEnd] = useState(false);
   const [hungUp, setHungUp] = useState(false);
-  const [showBanks, setShowBanks] = useState(false);
-  const [contactMsg, setContactMsg] = useState<string | null>(null);
-
+  const [busy, setBusy] = useState(false);
+  const [reported, setReported] = useState(false);
+  const [message, setMessage] = useState("");
   useEffect(() => {
-    void protection.status().then((s) => setCanEnd(s.canEndCall));
-    if (!banks.length) void api.myBanks().then((b) => setBanks(b.map((x) => x.bank))).catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    void protection
+      .status()
+      .then((s) => setCanEnd(s.canEndCall))
+      .catch(() => {});
+  }, []);
 
+  const report = async (bankId: string | null) => {
+    setBusy(true);
+    try {
+      await api.reportCall({ action: "hung_up", bankId });
+      setReported(true);
+      setMessage("Votre signalement a été enregistré.");
+    } catch {
+      setMessage("Votre signalement n’a pas pu être transmis.");
+    } finally {
+      setBusy(false);
+    }
+  };
   const hangUp = async () => {
-    if (canEnd) await protection.endCall();
+    if (canEnd && !(await protection.endCall())) {
+      setCanEnd(false);
+      setMessage("Utilisez le bouton rouge du téléphone pour raccrocher.");
+      return;
+    }
     setHungUp(true);
-    await api.reportCall({ action: "hung_up", bankId: banks.length === 1 ? banks[0]!.id : null }).catch(() => {});
+    setMessage("");
+    const banks = state?.banks ?? [];
+    if (banks.length <= 1) await report(banks[0]?.id ?? null);
   };
-
-  const callBack = (bank: Bank) => {
-    void api.reportCall({ action: "called_back", bankId: bank.id }).catch(() => {});
-    if (bank.officialPhone) void Linking.openURL(`tel:${bank.officialPhone}`);
-  };
-
-  const warnContact = async () => {
+  const warn = async () => {
+    setBusy(true);
+    setMessage("");
     try {
       const res = await api.alertContact("call");
-      if (res.sent) {
-        const names = res.contacts.map((c) => c.name).join(", ");
-        return setContactMsg(`${names} ${res.contacts.length > 1 ? "ont été prévenus" : "a été prévenu(e)"} par SMS.`);
+      if (!res.contacts.length) {
+        router.push("/contacts");
+        return;
       }
-      if (!res.contacts.length) return router.push("/contacts");
-      if (await SMS.isAvailableAsync()) {
-        await SMS.sendSMSAsync(
-          res.contacts.map((c) => c.phone),
-          "Je reçois un appel suspect de quelqu'un qui dit être de ma banque. Peux-tu m'appeler ?",
-        );
-      }
-    } catch {
-      setContactMsg("Impossible de prévenir votre proche pour le moment.");
+      if (res.sent) setMessage(`SMS transmis à ${res.contacts.map((c) => c.name).join(", ")}.`);
+      else if (await SMS.isAvailableAsync()) {
+        const sms = await SMS.sendSMSAsync(res.contacts.map((c) => c.phone), "J’ai reçu un appel suspect. Peux-tu me rappeler ?");
+        setMessage(sms.result === "sent" ? "SMS envoyé." : "Vérifiez l’envoi dans votre messagerie.");
+      } else setMessage("L’envoi de SMS est indisponible. Vous pouvez appeler votre proche depuis Mes proches.");
+    } catch (e) {
+      setMessage((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   };
 
-  const withPhone = banks.filter((b) => b.officialPhone);
-
+  const number = state?.number ? formatPhone(normalizePhone(state.number) ?? state.number) : null;
+  const bankNames = (state?.banks ?? []).map((b) => b.name);
+  const detail = state?.offline
+    ? "La connexion ne permet pas de vérifier l’annonce."
+    : state?.match === "number_mismatch"
+      ? "Votre banque a prévu un appel, mais pas depuis ce numéro."
+      : state?.call
+        ? "Vous avez indiqué avoir un doute sur cet appel."
+        : "Votre banque n’a annoncé aucun appel.";
   return (
     <VerdictScreen
       tone="danger"
-      icon="stop"
+      icon="alert"
       label="Appel non certifié"
-      title={hungUp ? "Bien joué." : "Raccrochez."}
-      subtitle={
-        state?.offline
-          ? "SmartSecure n'a pas pu vérifier cet appel. Par prudence, raccrochez et rappelez vous-même votre banque."
-          : "Votre banque n'a annoncé aucun appel. C'est peut-être un escroc qui se fait passer pour elle."
+      headline={number ?? (hungUp ? "Rappelez votre banque" : "Raccrochez")}
+      numeric={!!number}
+      title={bankNames.length === 1 ? `Se présente peut-être comme ${bankNames[0]}` : undefined}
+      subtitle={`${detail} Ne donnez aucun code${hungUp ? "." : " et raccrochez."}`}
+      actions={
+        hungUp ? (
+          <>
+            <Button variant="light" icon="bank" label="Rappeler ma banque" onPress={() => router.push("/callback")} />
+            <Button variant="ghost" label="Retour à l’accueil" onPress={() => router.replace("/")} />
+          </>
+        ) : (
+          <>
+            <CallActions>
+              <RoundAction size={controls.call} icon="bank" label="Rappeler ma banque" onPress={() => router.push("/callback")} />
+              <RoundAction size={controls.call} tone="danger" icon="phoneOff" label={canEnd ? "Raccrocher" : "J’ai raccroché"} onPress={() => void hangUp()} />
+            </CallActions>
+            <Button variant="ghost" label="Prévenir un proche" loading={busy} onPress={() => void warn()} />
+          </>
+        )
       }
     >
-      {!hungUp ? (
-        <Button
-          variant="danger"
-          size="hero"
-          icon="phoneOff"
-          label={canEnd ? "Raccrocher maintenant" : "J'ai raccroché"}
-          onPress={() => void hangUp()}
-          hint={canEnd ? "Termine l'appel en cours" : "Indique à SmartSecure que vous avez raccroché"}
-        />
-      ) : (
-        <Card tone="positive" style={{ flexDirection: "row", gap: space.md, alignItems: "center", padding: space.md }}>
-          <Icon name="check" color={tones.positive.fg} strokeWidth={2.6} />
-          <Text color={tones.positive.fg} style={{ flex: 1 }}>
-            Numéro signalé. Merci, vous protégez aussi les autres.
-          </Text>
-        </Card>
-      )}
-
-      <Button variant="secondary" icon="phone" label="Rappeler ma banque" onPress={() => (withPhone.length === 1 ? callBack(withPhone[0]!) : setShowBanks((v) => !v))} />
-      {showBanks ? (
-        <Card style={{ gap: space.sm, backgroundColor: palette.paper, shadowOpacity: 0 }}>
-          <Text variant="caption" color="soft">
-            Attendez une minute après avoir raccroché, puis appelez le numéro officiel.
-          </Text>
-          {withPhone.map((b) => (
-            <Pressable key={b.id} accessibilityRole="button" accessibilityLabel={`Appeler ${b.name}`} onPress={() => callBack(b)} style={styles.bankRow}>
-              <Text variant="bodyStrong" style={{ flex: 1 }}>
-                {b.name}
-              </Text>
-              <Text variant="bodyStrong" color="accent">
-                {formatPhone(b.officialPhone!)}
-              </Text>
-            </Pressable>
-          ))}
-          {banks.some((b) => !b.officialPhone) ? (
-            <Text>{withPhone.length ? "Pour vos autres banques : " : ""}utilisez le numéro inscrit au dos de votre carte bancaire.</Text>
-          ) : null}
-        </Card>
-      ) : null}
-
-      <Button variant="secondary" icon="heart" label="Prévenir un proche" onPress={() => void warnContact()} />
-      {contactMsg ? (
+      {message ? (
         <Text variant="caption" color="soft" align="center" accessibilityLiveRegion="polite">
-          {contactMsg}
+          {message}
         </Text>
       ) : null}
-
-      <Card style={{ marginTop: space.sm, backgroundColor: palette.paper, shadowOpacity: 0 }}>
-        <Text variant="bodyStrong">Une banque ne vous demande jamais</Text>
-        <Text color="soft" style={{ marginTop: 4 }}>
-          vos codes secrets, un virement « pour sécuriser votre argent », ou d'installer une application.
-        </Text>
-      </Card>
-
-      <View style={styles.links}>
-        <Pressable
-          accessibilityRole="link"
-          onPress={() => void Linking.openURL(Platform.OS === "ios" ? "sms:33700&body=spam%20vocal%20" : "sms:33700?body=spam%20vocal%20")}
-          style={styles.link}
-        >
-          <Text variant="label" color="accent">
-            Signaler au 33700
-          </Text>
-        </Pressable>
-        <Pressable accessibilityRole="link" onPress={() => router.replace("/")} style={styles.link}>
-          <Text variant="label" color="accent">
-            Accueil
-          </Text>
-        </Pressable>
-      </View>
+      {hungUp && !reported && (state?.banks.length ?? 0) > 1 ? (
+        <>
+          <Text variant="subhead">Quelle banque était citée ?</Text>
+          {state?.banks.map((bank) => (
+            <Button key={bank.id} variant="secondary" icon="bank" label={`Signaler à ${bank.name}`} disabled={busy} onPress={() => void report(bank.id)} />
+          ))}
+        </>
+      ) : null}
+      {hungUp ? (
+        <Group>
+          <ListRow icon="heart" title="Prévenir un proche" onPress={() => void warn()} />
+          <ListRow
+            icon="message"
+            title="Signaler au 33700"
+            subtitle="Le numéro officiel contre les appels frauduleux"
+            onPress={() =>
+              void Linking.openURL(Platform.OS === "ios" ? "sms:33700&body=spam%20vocal%20" : "sms:33700?body=spam%20vocal%20").catch(() => setMessage("Ouvrez votre messagerie et écrivez au 33700."))
+            }
+          />
+        </Group>
+      ) : null}
     </VerdictScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  bankRow: { flexDirection: "row", alignItems: "center", minHeight: 56, gap: space.md },
-  links: { flexDirection: "row", justifyContent: "space-between", marginTop: space.sm },
-  link: { minHeight: 48, justifyContent: "center" },
-});

@@ -4,13 +4,11 @@ import { formatPhone, normalizePhone } from "@vigie/shared";
 import type { Advisor, ClientSearchResult, ConsoleStats, FakeCallReport } from "@vigie/shared";
 import { many, one } from "../db/pool.ts";
 import { hashPassword, verifyPassword } from "../lib/crypto.ts";
+import { listReports } from "../services/reports.ts";
+import { audit, clientLabel } from "../services/audit.ts";
 import { consoleCall, endCall, recentConsoleCalls, startCall } from "../services/calls.ts";
-import { HttpError, consoleToken, createSession, destroySession, notFound, requireAdvisor, setConsoleCookie } from "./context.ts";
-
-const maskPhone = (e164: string) => {
-  const f = formatPhone(e164);
-  return `${f.slice(0, 2)} •• •• •• ${f.slice(-2)}`;
-};
+import { loadStaff, staffDto } from "../services/staff.ts";
+import { HttpError, consoleToken, createSession, destroySession, notFound, requireAdvisor, requireStaff, setConsoleCookie } from "./context.ts";
 
 // Hachage factice : même coût de calcul que le compte existe ou non (pas d'énumération des comptes).
 const dummyHash = hashPassword("vigie-dummy-password");
@@ -18,11 +16,14 @@ const dummyHash = hashPassword("vigie-dummy-password");
 export async function consoleRoutes(app: FastifyInstance) {
   app.post("/console/login", async (req, reply): Promise<Advisor> => {
     const body = z.object({ email: z.string().email(), password: z.string().min(1) }).parse(req.body);
-    const row = await one<{ id: string; password_hash: string }>("select id, password_hash from advisors where email = $1", [body.email.toLowerCase()]);
+    const row = await one<{ id: string; password_hash: string | null; active: boolean }>("select id, password_hash, active from advisors where email = $1", [body.email.toLowerCase()]);
     const ok = await verifyPassword(body.password, row?.password_hash ?? (await dummyHash));
-    if (!row || !ok) throw new HttpError(401, "bad_credentials", "E-mail ou mot de passe incorrect.");
+    if (!row || !row.password_hash || !ok) throw new HttpError(401, "bad_credentials", "E-mail ou mot de passe incorrect.");
+    if (!row.active) throw new HttpError(403, "account_disabled", "Ce compte est désactivé. Contactez le responsable de votre banque.");
     setConsoleCookie(reply, await createSession("advisor", row.id, 0.5));
-    return advisorDto(await requireAdvisorById(row.id));
+    const staff = await loadStaff(row.id);
+    if (staff.bankId) await audit({ bankId: staff.bankId, actor: staff, action: "auth.login" });
+    return staffDto(staff);
   });
 
   app.post("/console/logout", async (req, reply) => {
@@ -32,7 +33,7 @@ export async function consoleRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
-  app.get("/console/me", async (req) => advisorDto(await requireAdvisor(req)));
+  app.get("/console/me", async (req): Promise<Advisor> => staffDto(await requireStaff(req)));
 
   /** Recherche parmi les clients ayant ajouté la banque dans Vigie (téléphone, prénom ou référence client). */
   app.get<{ Querystring: { q?: string } }>("/console/clients", async (req): Promise<ClientSearchResult[]> => {
@@ -63,11 +64,13 @@ export async function consoleRoutes(app: FastifyInstance) {
   app.post<{ Params: { userId: string } }>("/console/clients/:userId/link", async (req) => {
     const advisor = await requireAdvisor(req);
     const { customerRef } = z.object({ customerRef: z.string().trim().min(1).max(40) }).parse(req.body);
+    if (!/^[0-9a-f-]{36}$/i.test(req.params.userId)) throw notFound("Ce client n'a pas ajouté votre banque dans SmartSecure");
     const row = await one(
-      `update user_banks set status = 'certified', customer_ref = $3, linked_at = now() where user_id = $1 and bank_id = $2 returning 1`,
-      [req.params.userId, advisor.bankId, customerRef],
+      `update user_banks set status = 'certified', customer_ref = $3, linked_at = now(), referent_id = $4 where user_id = $1 and bank_id = $2 returning 1`,
+      [req.params.userId, advisor.bankId, customerRef, advisor.id],
     );
-    if (!row) throw notFound("Ce client n'a pas ajouté votre banque dans Vigie");
+    if (!row) throw notFound("Ce client n'a pas ajouté votre banque dans SmartSecure");
+    await audit({ bankId: advisor.bankId, actor: advisor, action: "client.linked", target: { type: "client", id: req.params.userId, label: await clientLabel(advisor.bankId, req.params.userId) } });
     return { ok: true };
   });
 
@@ -94,76 +97,42 @@ export async function consoleRoutes(app: FastifyInstance) {
   app.post<{ Params: { id: string } }>("/console/calls/:id/end", async (req) => {
     const advisor = await requireAdvisor(req);
     await endCall(req.params.id, advisor.bankId);
-    return consoleCall(req.params.id, advisor.bankId);
+    const ended = await consoleCall(req.params.id, advisor.bankId);
+    await audit({ bankId: advisor.bankId, actor: advisor, action: "call.ended", target: { type: "client", id: ended.client.userId, label: await clientLabel(advisor.bankId, ended.client.userId) }, meta: { callId: ended.id } });
+    return ended;
   });
 
   app.get("/console/stats", async (req): Promise<ConsoleStats> => {
     const advisor = await requireAdvisor(req);
-    const totals = await one<{ certified: number; confirmed: number; linked: number; fake: number }>(
+    const totals = await one<{ certified: number; confirmed: number; linked: number; fake: number; callbacks: number; period_start: string; period_end: string }>(
       `select
          (select count(*)::int from certified_calls where bank_id = $1 and created_at > now() - interval '30 days') as certified,
          (select count(*)::int from certified_calls where bank_id = $1 and created_at > now() - interval '30 days' and confirmed_at is not null) as confirmed,
          (select count(*)::int from user_banks where bank_id = $1 and status = 'certified') as linked,
-         (select count(*)::int from call_reports where bank_id = $1 and action <> 'confirmed' and created_at > now() - interval '30 days') as fake`,
+         (select count(*)::int from call_reports where bank_id = $1 and action = 'hung_up' and created_at > now() - interval '30 days') as fake,
+         (select count(*)::int from call_reports where bank_id = $1 and action = 'called_back' and created_at > now() - interval '30 days') as callbacks,
+         to_char(now() - interval '30 days','YYYY-MM-DD') as period_start, to_char(now(),'YYYY-MM-DD') as period_end`,
       [advisor.bankId],
     );
     const daily = await many<{ day: string; certified: number; fake_reported: number }>(
       `select to_char(d, 'YYYY-MM-DD') as day,
               (select count(*)::int from certified_calls c where c.bank_id = $1 and c.created_at::date = d) as certified,
-              (select count(*)::int from call_reports r where r.bank_id = $1 and r.action <> 'confirmed' and r.created_at::date = d) as fake_reported
+              (select count(*)::int from call_reports r where r.bank_id = $1 and r.action = 'hung_up' and r.created_at::date = d) as fake_reported
        from generate_series(current_date - 13, current_date, interval '1 day') as d order by d`,
       [advisor.bankId],
     );
     const t = totals!;
     return {
-      period: { from: daily[0]?.day ?? "", to: daily.at(-1)?.day ?? "" },
+      period: { from: t.period_start, to: t.period_end },
       certifiedCalls: t.certified,
       confirmedRate: t.certified ? t.confirmed / t.certified : 0,
       linkedClients: t.linked,
       fakeCallsReported: t.fake,
+      callbacksStarted: t.callbacks,
       daily: daily.map((d) => ({ day: d.day, certified: d.certified, fakeReported: d.fake_reported })),
     };
   });
 
   /** Faux appels signalés par les clients de la banque (numéro affiché, action prise). */
-  app.get("/console/reports", async (req): Promise<FakeCallReport[]> => {
-    const advisor = await requireAdvisor(req);
-    const rows = await many<{ id: string; number: string | null; created_at: Date; action: FakeCallReport["action"]; first_name: string | null; phone: string; spoofed: boolean }>(
-      `select r.id, r.number, r.created_at, r.action, u.first_name, u.phone, coalesce(r.number = any(b.official_numbers), false) as spoofed
-       from call_reports r join users u on u.id = r.user_id join banks b on b.id = r.bank_id
-       where r.bank_id = $1 and r.action <> 'confirmed' order by r.created_at desc limit 100`,
-      [advisor.bankId],
-    );
-    return rows.map((r) => ({
-      id: r.id,
-      number: r.number ? formatPhone(r.number) : null,
-      spoofedOfficial: r.spoofed,
-      reportedAt: r.created_at.toISOString(),
-      action: r.action,
-      client: { firstName: r.first_name, phoneMasked: maskPhone(r.phone) },
-    }));
-  });
+  app.get("/console/reports", async (req): Promise<FakeCallReport[]> => listReports((await requireAdvisor(req)).bankId));
 }
-
-async function requireAdvisorById(id: string) {
-  const a = await one<{ id: string; name: string; email: string; agency: string; bankId: string; bankName: string; outboundNumber: string | null }>(
-    `select a.id, a.name, a.email, a.agency, a.bank_id as "bankId", b.name as "bankName", a.outbound_number as "outboundNumber"
-     from advisors a join banks b on b.id = a.bank_id where a.id = $1`,
-    [id],
-  );
-  if (!a) throw notFound();
-  return a;
-}
-
-function advisorDto(a: { id: string; name: string; email: string; agency: string; bankId: string; bankName: string; outboundNumber: string | null }): Advisor {
-  return {
-    id: a.id,
-    name: a.name,
-    email: a.email,
-    agency: a.agency,
-    bankId: a.bankId,
-    bankName: a.bankName,
-    outboundNumber: a.outboundNumber ? formatPhone(a.outboundNumber) : null,
-  };
-}
-

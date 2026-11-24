@@ -8,6 +8,7 @@ import type {
   CallCheckResponse,
   CallMatch,
   HomeResponse,
+  JoinBankResponse,
   Me,
   PhoneDirectory,
   ScanMessageResponse,
@@ -16,11 +17,12 @@ import type {
   UserSettings,
 } from "@vigie/shared";
 import { config, isProd } from "../config.ts";
-import { many, one, pool } from "../db/pool.ts";
+import { many, one, pool, tx } from "../db/pool.ts";
 import { otpCode, sha256 } from "../lib/crypto.ts";
 import { sendSms } from "../lib/sms.ts";
 import { analyze } from "../analysis/analyze.ts";
 import { alertColumns, processMessage, toDetail, toSummary } from "../services/alerts.ts";
+import { audit, clientLabel } from "../services/audit.ts";
 import { activeCallFor, confirmCall, consumeMatch, markSeen } from "../services/calls.ts";
 import { HttpError, createSession, destroySession, notFound, requireUser } from "./context.ts";
 
@@ -55,16 +57,16 @@ export async function appRoutes(app: FastifyInstance) {
   // ───────────── Connexion par SMS ─────────────
   app.post("/auth/start", async (req) => {
     const { phone } = z.object({ phone: phoneSchema }).parse(req.body);
-    const recent = await one("select 1 from otp_codes where phone = $1 and sent_at > now() - interval '45 seconds'", [phone]);
-    if (recent) throw new HttpError(429, "too_soon", "Un code vient d'être envoyé. Patientez quelques secondes.");
     const code = otpCode();
-    await pool.query(
+    const sent = await one(
       `insert into otp_codes (phone, code_hash, expires_at, attempts, sent_at) values ($1, $2, now() + interval '10 minutes', 0, now())
-       on conflict (phone) do update set code_hash = excluded.code_hash, expires_at = excluded.expires_at, attempts = 0, sent_at = now()`,
+       on conflict (phone) do update set code_hash = excluded.code_hash, expires_at = excluded.expires_at, attempts = 0, sent_at = now()
+       where otp_codes.sent_at <= now() - interval '45 seconds' returning phone`,
       [phone, sha256(code)],
     );
+    if (!sent) throw new HttpError(429, "too_soon", "Un code vient d’être envoyé. Patientez quelques secondes.");
     // Le SMS rappelle la règle d'or : ce code ne se donne à personne.
-    await sendSms(phone, `Votre code Vigie : ${code}. Ne le donnez à personne, même à un conseiller ou à Vigie.`);
+    await sendSms(phone, `Votre code SmartSecure : ${code}. Ne le donnez à personne, même à un conseiller ou à SmartSecure.`);
     return { ok: true };
   });
 
@@ -73,15 +75,15 @@ export async function appRoutes(app: FastifyInstance) {
     const devBypass = !isProd && config.DEV_FIXED_OTP && body.code === config.DEV_FIXED_OTP;
     if (!devBypass) {
       const otp = await one<{ code_hash: string; attempts: number }>(
-        "update otp_codes set attempts = attempts + 1 where phone = $1 and expires_at > now() returning code_hash, attempts",
-        [body.phone],
+        `update otp_codes set attempts = attempts + 1, expires_at = case when code_hash = $2 then now() else expires_at end
+         where phone = $1 and expires_at > now() and attempts < 5 returning code_hash, attempts`,
+        [body.phone, sha256(body.code)],
       );
       if (!otp || otp.attempts > 5) throw new HttpError(400, "code_expired", "Ce code a expiré. Demandez-en un nouveau.");
       if (otp.code_hash !== sha256(body.code)) throw new HttpError(400, "bad_code", "Ce code n'est pas le bon.");
     }
-    await pool.query("delete from otp_codes where phone = $1", [body.phone]);
     const user = await one<{ id: string }>(
-      "insert into users (phone) values ($1) on conflict (phone) do update set phone = excluded.phone returning id",
+      `insert into users (phone, settings) values ($1, '{"autoHangup":false,"notifyContactOnScam":false}') on conflict (phone) do update set phone = excluded.phone returning id`,
       [body.phone],
     );
     const token = await createSession("user", user!.id, 365);
@@ -163,9 +165,14 @@ export async function appRoutes(app: FastifyInstance) {
   app.post("/me/contacts", async (req) => {
     const userId = await requireUser(req);
     const body = z.object({ name: z.string().trim().min(1).max(60), phone: phoneSchema }).parse(req.body);
-    const count = await one<{ n: number }>("select count(*)::int as n from trusted_contacts where user_id = $1", [userId]);
-    if ((count?.n ?? 0) >= 3) throw new HttpError(400, "limit", "Vous pouvez ajouter jusqu'à 3 proches.");
-    return one<TrustedContact>("insert into trusted_contacts (user_id, name, phone) values ($1, $2, $3) returning id, name, phone", [userId, body.name, body.phone]);
+    return tx(async db => {
+      const me = await one<{ phone: string }>("select phone from users where id = $1 for update", [userId], db);
+      if (me?.phone === body.phone) throw new HttpError(400, "own_number", "Indiquez le numéro de votre proche, différent du vôtre.");
+      const contacts = await many<{ phone: string }>("select phone from trusted_contacts where user_id = $1", [userId], db);
+      if (contacts.some(c => c.phone === body.phone)) throw new HttpError(409, "already_added", "Ce proche est déjà dans votre liste.");
+      if (contacts.length >= 3) throw new HttpError(400, "limit", "Vous pouvez ajouter jusqu’à trois proches.");
+      return one<TrustedContact>("insert into trusted_contacts (user_id, name, phone) values ($1, $2, $3) returning id, name, phone", [userId, body.name, body.phone], db);
+    });
   });
 
   app.delete<{ Params: { id: string } }>("/me/contacts/:id", async (req) => {
@@ -186,8 +193,8 @@ export async function appRoutes(app: FastifyInstance) {
     const who = me?.first_name ?? "Votre proche";
     const text =
       body.context === "call"
-        ? `Vigie : ${who} reçoit un appel suspect de quelqu'un qui se dit de sa banque. Appelez-le dès que possible.`
-        : `Vigie : ${who} a reçu un message suspect et a besoin de votre avis. Appelez-le dès que possible.`;
+        ? `SmartSecure : ${who} reçoit un appel suspect de quelqu'un qui se dit de sa banque. Appelez-le dès que possible.`
+        : `SmartSecure : ${who} a reçu un message suspect et a besoin de votre avis. Appelez-le dès que possible.`;
     await Promise.all(contacts.map((c) => sendSms(c.phone, text)));
     await pool.query("insert into call_reports (user_id, number, action) values ($1, $2, 'alerted_contact')", [userId, body.number ?? null]);
     return { sent: true, contacts };
@@ -221,9 +228,65 @@ export async function appRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  /**
+   * Liaison par invitation : le conseiller donne un code à 6 chiffres (ou un QR) → lien « certifié » immédiat.
+   * L'invitation porte le numéro du client : le code ne marche que depuis ce compte. 5 essais par utilisateur et par 15 min ;
+   * même réponse si le code n'existe pas, est expiré, déjà utilisé ou destiné à un autre numéro.
+   */
+  app.post("/me/banks/join", async (req): Promise<JoinBankResponse> => {
+    const userId = await requireUser(req);
+    const { code } = z.object({ code: z.string().trim().regex(/^\d{6}$/, "Le code comporte 6 chiffres.") }).parse(req.body);
+    const tooMany = () => new HttpError(429, "too_many_attempts", "Trop d'essais. Patientez un moment ou demandez un nouveau code à votre conseiller.");
+    // Plafonds vérifiés ET enregistrés dans une même transaction, sous verrou par utilisateur : des requêtes
+    // parallèles ne peuvent pas dépasser 5 essais. Plafonds d'échecs : 30/heure par IP, 300/heure au total.
+    const attemptId = await tx(async (db) => {
+      await db.query("select pg_advisory_xact_lock(hashtext($1))", [userId]);
+      const c = await one<{ mine: number; ip: number; total: number }>(
+        `select count(*) filter (where user_id = $1 and at > now() - interval '15 minutes')::int as mine,
+                count(*) filter (where failed and ip = $2)::int as ip, count(*) filter (where failed)::int as total
+         from invite_attempts where at > now() - interval '1 hour'`,
+        [userId, req.ip],
+        db,
+      );
+      if (!c || c.mine >= 5 || c.ip >= 30 || c.total >= 300) return null;
+      const row = await one<{ id: string }>("insert into invite_attempts (user_id, ip) values ($1, $2) returning id", [userId, req.ip], db);
+      return row!.id;
+    });
+    if (!attemptId) throw tooMany();
+    await pool.query("delete from invite_attempts where at < now() - interval '1 day'");
+    const me = await one<{ phone: string }>("select phone from users where id = $1", [userId]);
+    return tx(async (db) => {
+      const invite = await one<{ bank_id: string; customer_ref: string | null; advisor_id: string; advisor_name: string }>(
+        `update client_invites i set used_at = now(), used_by = $2
+         from advisors a
+         where a.id = i.advisor_id and i.code_hash = $1 and i.client_phone = $3 and i.used_at is null and i.cancelled_at is null and i.expires_at > now()
+         returning i.bank_id, i.customer_ref, i.advisor_id, a.name as advisor_name`,
+        [sha256(`invite:${code}`), userId, me?.phone ?? ""],
+        db,
+      );
+      if (!invite) throw new HttpError(400, "invalid_code", "Ce code n'est pas valable ou a expiré. Demandez-en un nouveau à votre conseiller.");
+      await db.query(
+        `insert into user_banks (user_id, bank_id, status, customer_ref, linked_at, referent_id) values ($1, $2, 'certified', $3, now(), $4)
+         on conflict (user_id, bank_id) do update set status = 'certified', linked_at = now(), referent_id = excluded.referent_id,
+           customer_ref = coalesce(excluded.customer_ref, user_banks.customer_ref)`,
+        [userId, invite.bank_id, invite.customer_ref, invite.advisor_id],
+      );
+      await audit({ bankId: invite.bank_id, actor: { id: null, name: "Le client" }, action: "invite.used", target: { type: "client", id: userId, label: await clientLabel(invite.bank_id, userId, db) }, meta: { advisor: invite.advisor_name } }, db);
+      await db.query("update invite_attempts set failed = false where id = $1", [attemptId]);
+      const bank = await one<BankRow>("select id, slug, name, partner, official_phone from banks where id = $1", [invite.bank_id], db);
+      return { bank: toBank(bank!), status: "certified" };
+    });
+  });
+
   app.delete<{ Params: { bankId: string } }>("/me/banks/:bankId", async (req) => {
     const userId = await requireUser(req);
-    await pool.query("delete from user_banks where user_id = $1 and bank_id = $2", [userId, req.params.bankId]);
+    await tx(async db => {
+      await db.query("select id from users where id = $1 for update", [userId]);
+      const link = /^[0-9a-f-]{36}$/i.test(req.params.bankId) ? await one<{ status: string }>("select status from user_banks where user_id = $1 and bank_id = $2", [userId, req.params.bankId], db) : null;
+      if (link && link.status !== "basic") await audit({ bankId: req.params.bankId, actor: { id: null, name: "Le client" }, action: "client.unlinked", target: { type: "client", id: userId, label: await clientLabel(req.params.bankId, userId, db) } }, db);
+      await db.query("delete from user_banks where user_id = $1 and bank_id = $2", [userId, req.params.bankId]);
+      await db.query("update certified_calls set status = 'ended', ended_at = now() where user_id = $1 and bank_id = $2 and status in ('announced','seen')", [userId, req.params.bankId]);
+    });
     return { ok: true };
   });
 
@@ -283,22 +346,23 @@ export async function appRoutes(app: FastifyInstance) {
       .parse(req.body);
     const number = body.number ? normalizePhone(body.number) : null;
     // Numéro officiel usurpé : on rattache le signalement à la banque imitée (statistiques console).
+    if (body.bankId && !await one("select 1 from user_banks where user_id = $1 and bank_id = $2", [userId, body.bankId])) throw notFound("Banque introuvable");
+    if (body.certifiedCallId && !await one("select 1 from certified_calls where user_id = $1 and id = $2 and ($3::uuid is null or bank_id = $3)", [userId, body.certifiedCallId, body.bankId ?? null])) throw notFound("Annonce introuvable");
     const bankId =
       body.bankId ??
-      (number ? (await one<{ id: string }>("select id from banks where $1 = any(official_numbers) limit 1", [number]))?.id : null) ??
+      (number ? (await one<{ id: string }>("select id from banks where $1 = any(official_numbers) or $1 = official_phone limit 1", [number]))?.id : null) ??
       null;
     await pool.query(
       "insert into call_reports (user_id, bank_id, number, action, certified_call_id) values ($1, $2, $3, $4, $5)",
       [userId, bankId, number, body.action, body.certifiedCallId ?? null],
     );
-    if (number && body.action !== "confirmed") {
+    if (number && body.action === "hung_up") {
       await pool.query(
         `insert into reported_numbers (number, reports) values ($1, 1)
          on conflict (number) do update set reports = reported_numbers.reports + 1, last_reported_at = now()`,
         [number],
       );
     }
-    if (body.action === "hung_up") await pool.query("update users set blocked_count = blocked_count + 1 where id = $1", [userId]);
     return { ok: true };
   });
 
@@ -307,14 +371,15 @@ export async function appRoutes(app: FastifyInstance) {
     const userId = await requireUser(req);
     const q = z
       .object({
-        verdict: z.enum(["safe", "suspicious", "scam"]).optional(),
+        verdict: z.enum(["safe", "suspicious", "scam", "incomplete"]).optional(),
         source: z.enum(["mail", "sms", "whatsapp", "messaging", "call", "share"]).optional(),
         before: z.iso.datetime().optional(),
       })
       .parse(req.query);
     const rows = await many<any>(
       `select ${alertColumns} from alerts
-       where user_id = $1 and ($2::text is null or verdict = $2) and ($3::text is null or source = $3)
+       where user_id = $1 and ($2::text is null or
+         case when verdict = 'safe' and incomplete then 'incomplete' else verdict end = $2) and ($3::text is null or source = $3)
          and ($4::timestamptz is null or received_at < $4)
        order by received_at desc limit 50`,
       [userId, q.verdict ?? null, q.source ?? null, q.before ?? null],

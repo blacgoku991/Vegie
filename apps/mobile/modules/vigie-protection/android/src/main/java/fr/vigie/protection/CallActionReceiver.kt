@@ -31,7 +31,7 @@ class CallActionReceiver : BroadcastReceiver() {
 
   override fun onReceive(context: Context, intent: Intent) {
     if (intent.action != ACTION_END_CALL) return
-    endCall(context)
+    if (!endCall(context)) return
     Notifier.cancelCall(context)
     val number = intent.getStringExtra(EXTRA_NUMBER)
     val pending = goAsync()

@@ -1,59 +1,62 @@
 import { useEffect } from "react";
 import { View } from "react-native";
-import { router } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { router, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { api } from "@/api";
 import { callState } from "@/callState";
-import { FadeIn, Pulse } from "@/ui/Orb";
+import { Pulse } from "@/ui/Orb";
 import { Text } from "@/ui/Text";
-import { palette, space } from "@/ui/theme";
+import { space } from "@/ui/theme";
+import { DarkScope, useTheme } from "@/ui/ThemeProvider";
 
-/** Transition de vérification : courte, rassurante, et jamais plus de quelques secondes. */
+/** Transition de vérification : courte, et jamais plus de quelques secondes. */
 export default function CallCheck() {
+  // Simulateur de démo (dev uniquement) : numéro de l'appelant, transmis au serveur qui seul décide.
+  const { simulate } = useLocalSearchParams<{ simulate?: string }>();
+  const number = __DEV__ && simulate ? simulate : null;
   useEffect(() => {
     let cancelled = false;
-    const started = Date.now();
     void (async () => {
-      let result: Parameters<typeof callState.set>[0];
+      let result: NonNullable<Parameters<typeof callState.set>[0]>;
       try {
-        result = await Promise.race([
-          api.callCheck(),
-          new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
-        ]);
+        result = await api.callCheck(number);
       } catch {
         // Impossible de vérifier : par prudence, on considère l'appel comme non certifié.
         result = { certified: false, match: "number_unknown", call: null, banks: [], offline: true };
       }
-      const wait = Math.max(0, 1400 - (Date.now() - started));
-      setTimeout(() => {
-        if (cancelled) return;
-        callState.set(result);
-        // Une annonce existe et ne contredit pas le numéro : écran « appel annoncé ». Sinon : non certifié.
-        // « verified » seulement si l'appareil a vu le numéro de l'appelant et qu'il correspond (Android).
-        const announced = !!result!.call && result!.match !== "number_mismatch";
-        router.replace(
-          announced ? { pathname: "/call/certified", params: { id: result!.call!.id, verified: result!.certified ? "1" : "0" } } : "/call/uncertified",
-        );
-      }, wait);
+      if (cancelled) return;
+      callState.set({ ...result, number });
+      router.replace(result.call && result.match !== "number_mismatch" ? { pathname: "/call/certified", params: { id: result.call.id } } : "/call/uncertified");
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [number]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.paper, alignItems: "center", justifyContent: "center", padding: space.lg }}>
-      <Pulse size={200} />
-      <FadeIn delay={100}>
-        <View style={{ gap: space.sm, marginTop: space.xl }}>
-          <Text variant="title" align="center" accessibilityLiveRegion="polite">
-            Je vérifie auprès de votre banque…
+    <DarkScope>
+      <StatusBar style="light" />
+      <Checking />
+    </DarkScope>
+  );
+}
+
+function Checking() {
+  const { palette } = useTheme();
+  return (
+    <View style={{ flex: 1, backgroundColor: palette.paper }}>
+      <SafeAreaView style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: space.lg }}>
+        <Pulse size={160} />
+        <View style={{ gap: 6, marginTop: space.lg }}>
+          <Text variant="heading" align="center" accessibilityLiveRegion="polite">
+            Vérification auprès de votre banque
           </Text>
-          <Text color="soft" align="center">
-            Restez en ligne, ne donnez aucune information pour l'instant.
+          <Text variant="caption" color="faint" align="center">
+            Vous pouvez raccrocher à tout moment. Gardez vos codes secrets.
           </Text>
         </View>
-      </FadeIn>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 }

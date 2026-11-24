@@ -41,6 +41,7 @@ export interface AlertDetail extends AlertSummary {
   origin: string | null;
   /** Conseil d'action (« Supprimez ce mail. Ne cliquez sur aucun lien. »). */
   advice: string;
+  /** Les chemins et paramètres des liens restent exclus de l’historique. */
   links: Array<{ url: string; finalUrl: string | null; domain: string; domainAgeDays: number | null }>;
 }
 
@@ -232,15 +233,103 @@ export interface AdvisorLoginRequest {
   password: string;
 }
 
+export type StaffRole = "superadmin" | "bank_admin" | "advisor";
+
 export interface Advisor {
   id: string;
   name: string;
   email: string;
+  role: StaffRole;
+  /** Nom de l'agence (vide pour l'équipe SmartSecure). */
   agency: string;
-  bankId: string;
+  agencyId: string | null;
+  /** null pour le superadmin (équipe SmartSecure), qui n'appartient à aucune banque. */
+  bankId: string | null;
   bankName: string;
-  /** Numéro sortant de l'agence, présenté au client. */
+  /** Ligne directe du conseiller, annoncée au client. Déclarée par le responsable de la banque. */
   outboundNumber: string | null;
+}
+
+/** Membre de l'équipe d'une banque (vue du responsable). */
+export interface StaffMember {
+  id: string;
+  name: string;
+  email: string;
+  role: Exclude<StaffRole, "superadmin">;
+  agencyId: string | null;
+  agency: string;
+  outboundNumber: string | null;
+  active: boolean;
+  /** Le compte a choisi son mot de passe. */
+  activated: boolean;
+  createdAt: string;
+}
+
+/** Lien d'activation à usage unique. En production il est envoyé par e-mail ; en dev il est aussi renvoyé par l'API. */
+export interface ActivationLink {
+  link: string | null;
+  expiresAt: string;
+}
+
+export interface CreateStaffRequest {
+  name: string;
+  email: string;
+  role: "advisor" | "bank_admin";
+  agencyId?: string | null;
+  outboundNumber?: string | null;
+}
+
+export interface Agency {
+  id: string;
+  name: string;
+  advisors: number;
+}
+
+export interface BankSettings {
+  id: string;
+  slug: string;
+  name: string;
+  officialPhone: string | null;
+  officialNumbers: string[];
+}
+
+export interface AdminBank extends BankSettings {
+  partner: boolean;
+  staff: number;
+  linkedClients: number;
+}
+
+export interface CreateBankRequest {
+  name: string;
+  slug: string;
+  officialNumbers: string[];
+  admin: { name: string; email: string };
+}
+
+export interface ActivationInfo {
+  name: string;
+  email: string;
+  bankName: string;
+}
+
+export interface CreateInviteRequest {
+  /** Numéro de téléphone du client (obligatoire) : le code ne fonctionne que depuis le compte de ce numéro. */
+  clientPhone: string;
+  customerRef?: string | null;
+}
+
+export interface ClientInvite {
+  id: string;
+  /** Code à 6 chiffres que le client saisit dans l'app. */
+  code: string;
+  /** Lien profond encodé dans le QR code. */
+  link: string;
+  expiresAt: string;
+}
+
+export interface JoinBankResponse {
+  bank: Bank;
+  status: BankLinkStatus;
 }
 
 export interface ClientSearchResult {
@@ -270,6 +359,7 @@ export interface ConsoleStats {
   confirmedRate: number;
   linkedClients: number;
   fakeCallsReported: number;
+  callbacksStarted: number;
   /** Série quotidienne sur 14 jours. */
   daily: Array<{ day: string; certified: number; fakeReported: number }>;
 }
@@ -281,7 +371,103 @@ export interface FakeCallReport {
   spoofedOfficial: boolean;
   reportedAt: string;
   action: CallAction;
-  client: { firstName: string | null; phoneMasked: string };
+  client: { firstName: string | null; phoneMasked: string; userId?: string };
+}
+
+// ───────────────────────── Console v2 : clients, appels, invitations, journal ─────────────────────────
+
+export interface Page<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface StaffRef {
+  id: string;
+  name: string;
+  agency: string;
+}
+
+/** Client relié à la banque. Le téléphone est partiellement masqué pour un conseiller (complet pour le responsable). */
+export interface ClientListItem {
+  userId: string;
+  firstName: string | null;
+  phone: string;
+  customerRef: string | null;
+  linkStatus: BankLinkStatus;
+  linkedAt: string | null;
+  referent: StaffRef | null;
+  lastCallAt: string | null;
+}
+
+export interface ClientDetail extends ClientListItem {
+  /** Le client a au moins un appareil joignable par notification. */
+  reachable: boolean;
+  counts: { calls: number; reports: number; notes: number };
+}
+
+export interface CallListItem {
+  id: string;
+  client: { userId: string; firstName: string | null; phone: string };
+  advisor: { id: string; name: string; agency: string };
+  reason: string;
+  callerNumber: string | null;
+  status: CallStatus;
+  createdAt: string;
+  confirmedAt: string | null;
+  endedAt: string | null;
+}
+
+export type InviteStatus = "open" | "used" | "expired" | "cancelled";
+
+export interface InviteListItem {
+  id: string;
+  status: InviteStatus;
+  clientPhone: string;
+  customerRef: string | null;
+  advisorName: string;
+  createdAt: string;
+  expiresAt: string;
+  usedAt: string | null;
+}
+
+export interface ClientNote {
+  id: string;
+  text: string;
+  authorId: string | null;
+  authorName: string;
+  createdAt: string;
+  /** L'utilisateur courant peut la supprimer (auteur ou responsable). */
+  canDelete: boolean;
+}
+
+export type AuditCategory = "auth" | "call" | "invite" | "client" | "note" | "staff" | "settings";
+
+export interface AuditEvent {
+  id: string;
+  at: string;
+  actor: { id: string | null; name: string };
+  action: string;
+  target: { type: string; id: string | null; label: string | null } | null;
+  /** Métadonnées non sensibles (jamais de téléphone, code ou secret). */
+  meta: Record<string, string | number | boolean | null>;
+}
+
+export interface DashboardData {
+  today: DashboardPeriod;
+  week: DashboardPeriod;
+  /** Annonces encore ouvertes (les siennes pour un conseiller, toute la banque pour un responsable). */
+  activeCalls: CallListItem[];
+  latestCalls: CallListItem[];
+  latestReports: FakeCallReport[];
+}
+
+export interface DashboardPeriod {
+  announced: number;
+  confirmed: number;
+  linked: number;
+  reports: number;
 }
 
 export interface ApiError {
