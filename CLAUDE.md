@@ -14,7 +14,7 @@ Objectif : que l'utilisateur ne se fasse plus arnaquer, **sans rien avoir à fai
 | Connexion boîtes mail : Outlook (Graph), IMAP (Orange/Free/SFR/La Poste/Bouygues), Gmail (flag) | ✅ code, ⚠️ non testé contre de vrais comptes | nécessite app Azure + vrais identifiants |
 | `apps/scanner` : navigateur isolé (Playwright) | ✅ | tests SSRF + capture réelle ; sites externes bloqués par le réseau du bac à sable |
 | `apps/mobile` : tous les écrans | ✅ | typecheck + export web + captures iPhone (Playwright) |
-| Module natif Android (Kotlin) : filtrage d'appels, SMS/WhatsApp, raccrocher | ✅ compile hors module Expo | compilé contre l'API Android 14 + tests unitaires Kotlin ; `VigieProtectionModule.kt` (pont Expo) non compilé ici |
+| Module natif Android (Kotlin) : filtrage d'appels, SMS/WhatsApp, raccrocher | ✅ compile (build EAS réussi) | build EAS `development` Android OK le 24/11 (pont Expo compris) ; reste à tester sur un vrai téléphone |
 | Extensions iOS (Swift) : filtre SMS, annuaire d'appels, Partager | ✅ générées | `expo prebuild` crée les 3 cibles et les droits ; Swift non compilé (pas de Mac) |
 | `apps/console` : Next.js (connexion, appeler, appel en cours, stats, faux appels) | ✅ | `next build` + parcours Playwright |
 
@@ -32,8 +32,11 @@ ARCEP réservées à la fiction (01 99 00…, 06 39 98…).
 
 ## Prochaine étape
 
-1. **Premier build EAS** (`eas build -p android --profile development`) : valider la compilation du pont Kotlin/Swift
-   et tester le filtrage d'appels sur un vrai téléphone Android 10+.
+1. **iOS / TestFlight** : lancer UNE fois en interactif (connexion Apple + code 2FA, créer les 4 profils) :
+   `cd apps/mobile && npx eas-cli build -p ios --profile production --auto-submit`. Ensuite les builds iOS peuvent
+   partir en non interactif d'ici. Le compte Expo a déjà le certificat de distribution (équipe 9642GYNCU9) et la clé
+   App Store Connect `QN3CRFKK2K`. Android : build OK, à tester sur un vrai téléphone Android 10+.
+   Héberger l'API (UE) pour que les builds TestFlight puissent se connecter (aujourd'hui `api.vigie.example`).
 2. Créer l'app Azure (Microsoft Graph, « comptes de toute organisation + comptes personnels ») et tester Outlook réel.
 3. Brancher l'IA en UE (Vertex AI `europe-west1`, `AI_PROVIDER=vertex`) et mesurer sur un jeu d'arnaques réelles.
 4. Remplacer `api.vigie.example` (Info.plist du filtre SMS, `eas.json`) par le vrai domaine + fichier
