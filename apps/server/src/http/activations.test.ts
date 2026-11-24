@@ -282,6 +282,11 @@ t("recherche par fin de numéro : réservée au responsable ; le conseiller doit
   assert.equal((await call(advisorA, "GET", `/console/clients?q=${p}`)).json().length, 1);
   assert.equal((await call(advisorA, "GET", "/console/clients?q=Suffixe")).json().length, 1, "le prénom reste cherchable");
   assert.equal((await call(adminA, "GET", `/console/clients?q=${suffix}`)).json().length, 1);
+  // Même règle sur la liste des clients (/console/customers).
+  const total = async (who: typeof advisorA, q: string) => (await call(who, "GET", `/console/customers?q=${encodeURIComponent(q)}`)).json().total;
+  assert.equal(await total(advisorA, suffix), 0, "liste clients : pas d'oracle de suffixe pour un conseiller");
+  assert.equal(await total(advisorA, p), 1, "liste clients : le numéro complet reste cherchable");
+  assert.equal(await total(adminA, suffix), 1, "liste clients : le responsable peut chercher par fin de numéro");
 });
 
 t("numéro officiel déjà déclaré par une autre banque : 409 ; un signalement n'est rattaché par numéro qu'à une banque liée à l'utilisateur", async () => {

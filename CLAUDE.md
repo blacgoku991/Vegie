@@ -153,7 +153,7 @@ cd apps/mobile && npx expo export -p web   # aperçu web de l'app (dev uniquemen
 
 ## Limites connues / dettes
 
-- `trustProxy: true` rend `req.ip` falsifiable si l’API est joignable sans proxy : en production, appliquer les limites par IP au proxy.
+- `TRUST_PROXY` (0 par défaut) : nombre de proxys de confiance devant l'API. Mettre 1 en production derrière Caddy/Nginx, sinon les limites par IP voient l'adresse du proxy ; ne jamais l'augmenter si l'API est joignable directement (X-Forwarded-For falsifiable).
 - Pas de limitation de débit par IP sur `/auth/start` (seulement 45 s par numéro et 5 essais par code) : ajouter un
   rate-limit au niveau du proxy ou de Fastify avant la production.
 - `ILMessageFilterExtensionNetworkURL` codé en dur (`api.vigie.example`) dans `targets/VigieMessageFilter/Info.plist`.

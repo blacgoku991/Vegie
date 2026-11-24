@@ -1,6 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import { ZodError } from "zod";
-import { isProd } from "../config.ts";
+import { config, isProd } from "../config.ts";
 import { log } from "../lib/log.ts";
 import { HttpError } from "./context.ts";
 import { adminRoutes } from "./routes-admin.ts";
@@ -14,7 +14,9 @@ export function buildServer(): FastifyInstance {
   const app = Fastify({
     logger: false,
     bodyLimit: 512 * 1024,
-    trustProxy: true,
+    // Nombre de proxys de confiance devant l'API. À 0, `req.ip` est l'adresse de la connexion : un client ne peut pas
+    // la falsifier avec X-Forwarded-For, ce qui protège les limites par IP (codes, liens d'activation).
+    trustProxy: config.TRUST_PROXY > 0 ? (_address: string, hop: number) => hop < config.TRUST_PROXY : false,
   });
 
   app.addHook("onSend", async (_req, reply) => {

@@ -6,7 +6,7 @@
  */
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { formatPhone } from "@vigie/shared";
+import { formatPhone, normalizePhone } from "@vigie/shared";
 import type {
   AuditEvent, BankLinkStatus, CallListItem, CallStatus, ClientDetail, ClientInvite, ClientListItem, ClientNote, DashboardData, DashboardPeriod,
   InviteListItem, InviteStatus, Page,
@@ -227,7 +227,19 @@ export async function clientRoutes(app: FastifyInstance) {
     if (q.agencyId) f.add("r.agency_id = $?", q.agencyId);
     if (q.q && q.q.length >= 2) {
       const digits = q.q.replace(/\D/g, "");
-      f.add(`(u.first_name ilike $? or ub.customer_ref ilike $? or ($? <> '' and u.phone like $?))`, `%${escapeLike(q.q)}%`, `${escapeLike(q.q)}%`, digits.length >= 4 ? "x" : "", `%${digits.slice(-6)}`);
+      // Même règle que /console/clients : la recherche par fin de numéro reconstituerait un numéro masqué, elle est donc
+      // réservée au responsable. Un conseiller ne trouve un client par téléphone qu'avec le numéro complet.
+      const suffix = staff.role === "bank_admin" && digits.length >= 4;
+      const exact = normalizePhone(q.q);
+      f.add(
+        `(u.first_name ilike $? or ub.customer_ref ilike $? or ($? <> '' and u.phone like $?) or ($? <> '' and u.phone = $?))`,
+        `%${escapeLike(q.q)}%`,
+        `${escapeLike(q.q)}%`,
+        suffix ? "x" : "",
+        `%${digits.slice(-6)}`,
+        exact ? "x" : "",
+        exact ?? "",
+      );
     }
     const dir = q.dir === "desc" ? "desc" : "asc";
     const order = { name: `lower(u.first_name) ${dir} nulls last`, last_call: `last_call_at ${dir} nulls last`, linked: `ub.linked_at ${dir} nulls last` }[q.sort];

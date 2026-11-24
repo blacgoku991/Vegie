@@ -10,6 +10,8 @@ const schema = z.object({
   /** api | worker | all — permet de séparer les rôles en production. */
   ROLE: z.enum(["api", "worker", "all"]).default("all"),
   PORT: z.coerce.number().int().default(4000),
+  /** Nombre de proxys inverses de confiance devant l'API (0 = aucun ; 1 derrière Caddy, Nginx ou un répartiteur). */
+  TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
   DATABASE_URL: z.string().default("postgres://vigie:vigie@localhost:5432/vigie"),
   /** URL publique HTTPS du serveur (webhooks Microsoft/Google, callbacks OAuth). */
   PUBLIC_URL: z.string().default("http://localhost:4000"),
