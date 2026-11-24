@@ -111,19 +111,19 @@ export default function MailboxAdd() {
         ) : null}
 
         {kind?.type === "outlook" || kind?.type === "gmail" ? (
-          <Text color="soft">Une page {kind.label} va s'ouvrir pour autoriser Vigie à lire vos nouveaux mails. Vigie ne verra jamais votre mot de passe.</Text>
+          <Text color="soft">Une page {kind.label} va s'ouvrir pour autoriser SmartSecure à lire vos nouveaux mails. SmartSecure ne verra jamais votre mot de passe.</Text>
         ) : null}
 
         {kind?.type === "unknown" ? (
           <Card tone="neutral">
-            <Text>Cette messagerie n'est pas encore prise en charge. Vigie protège Outlook, Hotmail, Orange, Free, SFR, La Poste et Bouygues.</Text>
+            <Text>Cette messagerie n'est pas encore prise en charge. SmartSecure protège Outlook, Hotmail, Orange, Free, SFR, La Poste et Bouygues.</Text>
           </Card>
         ) : null}
 
         {error && kind?.type !== "imap" ? <Text color={tones.danger.fg}>{error}</Text> : null}
 
         <Text variant="caption" color="faint">
-          Vigie lit vos nouveaux mails uniquement pour repérer les arnaques. Votre mot de passe est chiffré et n'est jamais affiché.
+          SmartSecure lit vos nouveaux mails uniquement pour repérer les arnaques. Votre mot de passe est chiffré et n'est jamais affiché.
         </Text>
         <View style={{ height: 1, backgroundColor: palette.line }} />
       </View>

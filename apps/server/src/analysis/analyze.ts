@@ -2,10 +2,10 @@ import type { CheckKey, CheckStatus } from "@vigie/shared";
 import { findBrandIn, isOfficialDomain, officialBrandForDomain, registrableDomain } from "./brands.ts";
 import { aiAnalyze, aiEnabled } from "./ai.ts";
 import { extractLinks, reputationFindings, staticLinkFindings } from "./links.ts";
-import { domainAgeDays, scanSite, urlhaus, webRisk } from "./reputation.ts";
+import { domainAgeDays, scanSite, urlhaus, webRiskCheck } from "./reputation.ts";
 import { analyzeSender } from "./sender.ts";
 import { textFindings } from "./text-rules.ts";
-import { adviceFor, aiFindings, buildChecks, mergeWithAi, scoreFindings } from "./verdict.ts";
+import { adviceFor, aiFindings, buildChecks, INCOMPLETE_ADVICE, INCOMPLETE_EXPLANATION, mergeWithAi, scoreFindings } from "./verdict.ts";
 import type { AnalysisResult, Finding, LinkInfo, MessageInput, SiteScan } from "./types.ts";
 
 export interface AnalyzeOptions {
@@ -35,8 +35,8 @@ export async function analyze(input: MessageInput, opts: AnalyzeOptions): Promis
   const reputation = await withTimeout(
     Promise.all(
       candidates.map(async (l) => {
-        const [ageDays, risk, haus] = await Promise.all([domainAgeDays(l.host), webRisk(l.url), urlhaus(l.url)]);
-        return { ...l, ageDays, blacklisted: risk ?? haus };
+        const [ageDays, risk, haus] = await Promise.all([domainAgeDays(l.host), webRiskCheck(l.url), urlhaus(l.url)]);
+        return { ...l, ageDays, blacklisted: risk.hit ?? haus, webRiskChecked: risk.checked };
       }),
     ),
     Math.min(budget, 6000),
@@ -86,13 +86,28 @@ export async function analyze(input: MessageInput, opts: AnalyzeOptions): Promis
     );
   }
 
+  // Contrôles importants qui n'ont pas pu avoir lieu : on ne conclura jamais « sûr » en vert.
+  const missingChecks: string[] = [];
+  if (candidates.length) {
+    if (reputation.length < candidates.length) missingChecks.push("reputation");
+    else {
+      if (reputation.some((r) => !r.webRiskChecked)) missingChecks.push("web_risk");
+      if (reputation.some((r) => r.ageDays == null)) missingChecks.push("domain_age");
+    }
+    if (sites.length < Math.min(candidates.length, 2)) missingChecks.push("site_visit");
+  }
+  if (opts.deep && aiEnabled() && !ai) missingChecks.push("ai");
+
   // 5. Verdict et explication.
   const { verdict: ruleVerdict } = scoreFindings(findings);
   const verdict = mergeWithAi(ruleVerdict, ai);
   const risky = findings.filter((f) => f.level !== "ok").sort((a, b) => b.weight - a.weight);
   let explanation: string;
-  if (verdict === "safe") {
-    explanation = sender.verifiedOfficial && brand ? `Rien d'anormal : le message vient bien de ${brand.name}.` : "Aucun signe d'arnaque dans ce message.";
+  const incomplete = missingChecks.length > 0;
+  if (verdict === "safe" && incomplete) {
+    explanation = INCOMPLETE_EXPLANATION;
+  } else if (verdict === "safe") {
+    explanation = sender.verifiedOfficial && brand ? `Rien d'anormal : le message vient bien de ${brand.name}.` : "Aucun signe d'arnaque détecté dans ce message.";
   } else if (ai && ai.verdict === verdict && ai.explanation_fr) {
     explanation = ai.explanation_fr;
   } else {
@@ -104,12 +119,14 @@ export async function analyze(input: MessageInput, opts: AnalyzeOptions): Promis
   return {
     verdict,
     explanation,
-    advice: adviceFor(verdict, input.source),
+    advice: verdict === "safe" && incomplete ? INCOMPLETE_ADVICE : adviceFor(verdict, input.source),
     title: titleFor(input),
     findings,
     links: linkInfos,
     brand: imitated,
     aiUsed: !!ai,
+    incomplete,
+    missingChecks,
   };
 }
 
@@ -118,7 +135,11 @@ export function checksFor(result: AnalysisResult, input: { hasSender: boolean; d
   const visited = result.links.some((l) => l.finalUrl);
   const defaults: Record<CheckKey, { status: CheckStatus; detail: string }> = {
     sender: input.hasSender ? { status: "ok", detail: "Rien d'anormal sur l'expéditeur." } : { status: "unknown", detail: "L'expéditeur n'est pas connu." },
-    links: hasLinks ? { status: "ok", detail: "Les liens ne sont pas connus comme dangereux." } : { status: "ok", detail: "Aucun lien dans ce message." },
+    links: !hasLinks
+      ? { status: "ok", detail: "Aucun lien dans ce message." }
+      : result.missingChecks.some((m) => m === "reputation" || m === "web_risk" || m === "domain_age")
+        ? { status: "unknown", detail: "Les liens n'ont pas pu être tous vérifiés. Restez prudent." }
+        : { status: "ok", detail: "Les liens ne sont pas connus comme dangereux." },
     site: !hasLinks
       ? { status: "ok", detail: "Aucun site à vérifier." }
       : visited

@@ -6,6 +6,8 @@ import { analyzeSender, parseAuthResults } from "./sender.ts";
 import { textFindings } from "./text-rules.ts";
 import { mergeWithAi, scoreFindings } from "./verdict.ts";
 import { redact } from "./ai.ts";
+import { analyze, checksFor } from "./analyze.ts";
+import { incompleteCaution, verdictMeta, verdicts } from "@vigie/shared";
 import type { MessageInput } from "./types.ts";
 
 /** Analyse « hors ligne » (sans réseau ni IA) : ce que Vigie sait décider instantanément. */
@@ -141,4 +143,45 @@ test("masquage des données sensibles avant envoi à l'IA", () => {
 test("un vrai SMS de code de confirmation n'est pas une alerte", () => {
   const r = quick({ source: "sms", senderId: "BNPPARIBAS", text: "Votre code de confirmation est 482913. Ne le communiquez jamais, même à un conseiller." });
   assert.equal(r.verdict, "safe");
+});
+
+test("le verdict « sûr » ne promet rien : « Aucun signe d'arnaque détecté »", () => {
+  assert.equal(verdicts.safe.label, "Aucun signe d'arnaque détecté");
+  assert.equal(verdicts.safe.tone, "positive");
+});
+
+test("vérification incomplète : jamais de vert, même si le verdict est « sûr »", () => {
+  const complete = verdictMeta("safe", false);
+  const partial = verdictMeta("safe", true);
+  assert.equal(complete.tone, "positive");
+  assert.equal(partial.tone, "warning");
+  assert.equal(partial.label, "Vérification incomplète");
+  assert.match(incompleteCaution, /restez prudent/);
+  // Une arnaque reste une arnaque.
+  assert.equal(verdictMeta("scam", true).tone, "danger");
+});
+
+test("lien vers un site inconnu sans Web Risk ni visite possible : verdict « sûr » mais incomplet", async () => {
+  const r = await analyze(
+    { source: "mail", fromName: "Jacques Martin", fromAddress: "jacques.martin@gmail.com", text: "Voici le site de mon jardin : https://www.mon-jardin-bio.fr/", receivedAt: new Date() },
+    { deep: false, budgetMs: 500 },
+  );
+  assert.equal(r.incomplete, true);
+  assert.ok(r.missingChecks.length > 0);
+  if (r.verdict === "safe") {
+    assert.match(r.explanation, /Vérification incomplète : restez prudent/);
+    assert.match(r.advice, /Ne cliquez sur aucun lien/);
+  }
+  const checks = checksFor(r, { hasSender: true, deep: false });
+  assert.notEqual(checks.find((c) => c.key === "links")!.status, "ok");
+});
+
+test("message sans lien ni IA configurée : analyse complète", async () => {
+  const r = await analyze(
+    { source: "mail", fromName: "Jacques Martin", fromAddress: "jacques.martin@gmail.com", subject: "Photos", text: "Coucou ! Les photos arrivent lundi. Bises", receivedAt: new Date() },
+    { deep: false, budgetMs: 500 },
+  );
+  assert.equal(r.verdict, "safe");
+  assert.equal(r.incomplete, false);
+  assert.equal(r.explanation, "Aucun signe d'arnaque détecté dans ce message.");
 });

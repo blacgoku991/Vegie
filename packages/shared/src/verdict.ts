@@ -39,10 +39,19 @@ export interface VerdictMeta {
 }
 
 export const verdicts: Record<Verdict, VerdictMeta> = {
-  safe: { tone: "positive", label: "Sûr", icon: "check", severity: 0 },
+  safe: { tone: "positive", label: "Aucun signe d'arnaque détecté", icon: "check", severity: 0 },
   suspicious: { tone: "warning", label: "Douteux", icon: "alert", severity: 1 },
   scam: { tone: "danger", label: "Arnaque", icon: "stop", severity: 2 },
 };
+
+/** Verdict « sûr » mais contrôle incomplet : jamais de vert. */
+export const incompleteVerdict: VerdictMeta = { tone: "warning", label: "Vérification incomplète", icon: "alert", severity: 1 };
+export const incompleteCaution = "Vérification incomplète : restez prudent";
+
+/** Présentation d'un verdict en tenant compte d'une vérification incomplète. */
+export function verdictMeta(verdict: Verdict, incomplete = false): VerdictMeta {
+  return verdict === "safe" && incomplete ? incompleteVerdict : verdicts[verdict];
+}
 
 /** États d'un appel : même logique visuelle que les verdicts. */
 export type CallVerdict = "certified" | "uncertified";

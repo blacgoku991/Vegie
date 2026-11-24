@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View } from "react-native";
 import { router } from "expo-router";
-import { verdicts, type ScanMessageResponse } from "@vigie/shared";
+import { verdictMeta, type ScanMessageResponse } from "@vigie/shared";
 import { api } from "@/api";
 import { Button } from "@/ui/Button";
 import { FadeIn } from "@/ui/Orb";
@@ -53,12 +53,12 @@ export default function CheckMessage() {
         />
       ) : (
         <FadeIn>
-          <Card tone={verdicts[result.verdict].tone} style={{ gap: space.md }}>
-            <VerdictBadge verdict={result.verdict} size="lg" onTint />
-            <Text variant="heading" color={tones[verdicts[result.verdict].tone].fg}>
+          <Card tone={verdictMeta(result.verdict, result.incomplete).tone} style={{ gap: space.md }}>
+            <VerdictBadge verdict={result.verdict} incomplete={result.incomplete} size="lg" onTint />
+            <Text variant="heading" color={tones[verdictMeta(result.verdict, result.incomplete).tone].fg}>
               {result.explanation}
             </Text>
-            <Text color={tones[verdicts[result.verdict].tone].fg}>{result.advice}</Text>
+            <Text color={tones[verdictMeta(result.verdict, result.incomplete).tone].fg}>{result.advice}</Text>
           </Card>
           {result.alertId ? (
             <View style={{ marginTop: space.md }}>

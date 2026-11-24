@@ -21,9 +21,10 @@ interface AlertRow {
   links: AlertDetail["links"];
   received_at: Date;
   read_at: Date | null;
+  incomplete: boolean;
 }
 
-export const alertColumns = "id, source, verdict, title, explanation, advice, sender, origin, checks, links, received_at, read_at";
+export const alertColumns = "id, source, verdict, title, explanation, advice, sender, origin, checks, links, received_at, read_at, incomplete";
 
 export function toSummary(r: AlertRow): AlertSummary {
   return {
@@ -35,6 +36,7 @@ export function toSummary(r: AlertRow): AlertSummary {
     sender: r.sender,
     receivedAt: r.received_at.toISOString(),
     read: !!r.read_at,
+    incomplete: !!r.incomplete,
   };
 }
 
@@ -66,8 +68,8 @@ export async function processMessage(opts: ProcessOptions): Promise<{ alert: Ale
   const sender = opts.input.fromName || opts.input.fromAddress || (opts.input.senderId ? displaySender(opts.input.senderId) : null);
 
   const row = await one<AlertRow>(
-    `insert into alerts (user_id, source, verdict, title, explanation, advice, sender, origin, checks, links, fingerprint, received_at)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    `insert into alerts (user_id, source, verdict, title, explanation, advice, sender, origin, checks, links, fingerprint, received_at, incomplete)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
      on conflict (user_id, fingerprint) do nothing
      returning ${alertColumns}`,
     [
@@ -83,12 +85,13 @@ export async function processMessage(opts: ProcessOptions): Promise<{ alert: Ale
       JSON.stringify(result.links.map((l) => ({ url: l.url, finalUrl: l.finalUrl, domain: l.host, domainAgeDays: l.domainAgeDays }))),
       opts.fingerprint,
       opts.input.receivedAt,
+      result.incomplete,
     ],
   );
   if (!row) return null;
 
   if (result.verdict === "scam") await pool.query("update users set blocked_count = blocked_count + 1 where id = $1", [opts.userId]);
-  if (opts.notify && result.verdict !== "safe") await notifyUser(opts.userId, row.id, result, opts.input.source);
+  if (opts.notify && (result.verdict !== "safe" || result.incomplete)) await notifyUser(opts.userId, row.id, result, opts.input.source);
   if (result.verdict === "scam") await maybeWarnContact(opts.userId, opts.input.source);
 
   log.info("alert.created", { userId: opts.userId, verdict: result.verdict, source: opts.input.source, ai: result.aiUsed });
@@ -107,11 +110,14 @@ const sourceWord: Record<AlertSource, string> = {
 async function notifyUser(userId: string, alertId: string, result: AnalysisResult, source: AlertSource) {
   // Aucun contenu du message dans la notification : seulement le verdict. Le détail est chargé dans l'app.
   const scam = result.verdict === "scam";
+  const unchecked = result.verdict === "safe";
   await pushToUser(userId, {
-    title: scam ? "Arnaque détectée" : "Message douteux",
+    title: scam ? "Arnaque détectée" : unchecked ? "Vérification incomplète" : "Message douteux",
     body: scam
       ? `Vigie a repéré ${sourceWord[source]} dangereux. Ne cliquez sur aucun lien. Touchez pour voir.`
-      : `Vigie a un doute sur ${sourceWord[source]}. Touchez pour voir pourquoi.`,
+      : unchecked
+        ? `Vérification incomplète : restez prudent avec ${sourceWord[source]}. Touchez pour voir.`
+        : `Vigie a un doute sur ${sourceWord[source]}. Touchez pour voir pourquoi.`,
     data: { type: "alert", alertId, verdict: result.verdict },
     channelId: "alerts",
     interruptionLevel: scam ? "time-sensitive" : "active",

@@ -18,6 +18,11 @@ export default function CallClientPage() {
   const [reason, setReason] = useState(reasons[0]!);
   const [customReason, setCustomReason] = useState("");
   const [customerRef, setCustomerRef] = useState("");
+  // Numéro depuis lequel le conseiller va appeler : seul l'appel venant de ce numéro sera validé chez le client.
+  const [callerNumber, setCallerNumber] = useState("");
+  useEffect(() => {
+    if (advisor?.outboundNumber) setCallerNumber((n) => n || advisor.outboundNumber!);
+  }, [advisor?.outboundNumber]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [recent, setRecent] = useState<ConsoleCall[]>([]);
@@ -41,7 +46,7 @@ export default function CallClientPage() {
     setBusy(true);
     setError(null);
     try {
-      const call = await api.startCall(selected.userId, reason === "autre" ? customReason.trim() : reason);
+      const call = await api.startCall(selected.userId, reason === "autre" ? customReason.trim() : reason, callerNumber.trim() || undefined);
       router.push(`/calls/${call.id}`);
     } catch (err) {
       setError((err as Error).message);
@@ -149,9 +154,21 @@ export default function CallClientPage() {
                     ) : null}
                     <p className="faint">Restez général : le motif s'affiche sur le téléphone du client.</p>
                   </div>
-                  <p className="soft">
-                    Numéro présenté : <strong>{advisor?.outboundNumber ?? "non renseigné"}</strong>
-                  </p>
+                  <div className="field">
+                    <label htmlFor="callerNumber">Numéro depuis lequel vous appelez</label>
+                    <input
+                      id="callerNumber"
+                      className="input"
+                      inputMode="tel"
+                      value={callerNumber}
+                      onChange={(e) => setCallerNumber(e.target.value)}
+                      placeholder="01 99 00 12 34"
+                    />
+                    <p className="faint">
+                      Le client ne verra « appel annoncé » que si l'appel vient de ce numéro. Un autre numéro ne sera pas validé. L'annonce reste valable 10 minutes.
+                      {!callerNumber.trim() ? " Si vous laissez vide, le numéro officiel de votre banque sera utilisé." : ""}
+                    </p>
+                  </div>
                   {!selected.reachable ? (
                     <p className="error" style={{ color: "var(--warning-fg)" }}>
                       <Icon name="alert" size={20} /> Notifications désactivées chez ce client : il devra appuyer sur « On m'appelle de ma banque ».
@@ -175,7 +192,7 @@ export default function CallClientPage() {
               <ol className="soft" style={{ margin: 0, paddingLeft: 22, display: "grid", gap: 6 }}>
                 <li>Cherchez le client et lancez l'appel certifié.</li>
                 <li>Son téléphone affiche votre nom, votre agence et le motif.</li>
-                <li>Appelez-le depuis votre numéro habituel.</li>
+                <li>Appelez-le depuis le numéro indiqué (sinon l'appel ne sera pas validé).</li>
               </ol>
             </div>
           )}

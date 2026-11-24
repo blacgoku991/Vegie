@@ -12,7 +12,9 @@ import java.util.concurrent.Executors
  * une vérification serveur de 2,5 s pour les numéros de banque.
  *
  * Règles :
- *  1. Appel annoncé par la banque (numéro attendu) → « Appel certifié ».
+ *  1. Appel venant du numéro annoncé par la banque → « Appel annoncé » (vert). L'annonce est consommée
+ *     au premier appel qui correspond. Un numéro différent ou inconnu n'est JAMAIS validé : message neutre,
+ *     « raccrochez et rappelez votre banque » (et pas de rejet automatique : la banque peut avoir changé de ligne).
  *  2. Numéro officiel d'une banque PARTENAIRE sans annonce → « Appel NON certifié »
  *     (cas typique d'usurpation du vrai numéro de la banque) ; rejet si l'option est activée.
  *  3. Numéro officiel d'une banque non partenaire → information prudente.
@@ -46,12 +48,15 @@ class VigieCallScreeningService : CallScreeningService() {
     val store = Store(this)
     val expected = store.expectedCall()
 
-    // 1. Appel annoncé : même numéro, ou numéro non transmis par la banque.
-    if (expected != null && (expected.callerNumber == null || expected.callerNumber == number)) {
+    // 1. Appel annoncé : le numéro entrant doit être exactement le numéro annoncé.
+    //    Une annonce sans numéro ne valide aucun appel.
+    if (expected != null && expected.callerNumber != null && expected.callerNumber == number) {
+      store.consumedCallId = expected.id // consommée : un second appel ne repasse pas en vert
       allow(details)
       Notifier.callCertified(this, expected)
       return
     }
+    val announcedElsewhere = expected != null
 
     val bank = store.bankNumbers()[number]
     if (bank != null) {
@@ -59,7 +64,8 @@ class VigieCallScreeningService : CallScreeningService() {
         // Dernière chance : l'annonce est peut-être arrivée sur le serveur sans notification.
         val check = Api.get(store, "/me/calls/check?number=${Api.enc(number)}", 2500)
         val call = check?.optJSONObject("call")
-        if (check?.optBoolean("certified") == true && call != null) {
+        if (check?.optBoolean("certified") == true && call != null && call.getString("id") != store.consumedCallId) {
+          store.consumedCallId = call.getString("id")
           allow(details)
           Notifier.callCertified(
             this,
@@ -67,7 +73,11 @@ class VigieCallScreeningService : CallScreeningService() {
           )
           return
         }
-        if (store.autoHangup) {
+        if (announcedElsewhere || call != null) {
+          // Un appel est annoncé, mais pas depuis ce numéro : on ne valide pas, on ne rejette pas.
+          allow(details)
+          Notifier.callAnnouncedOtherNumber(this, bank.bankName)
+        } else if (store.autoHangup) {
           reject(details)
           Notifier.callUncertified(this, bank.bankName, number, blocked = true)
         } else {
@@ -103,6 +113,7 @@ class VigieCallScreeningService : CallScreeningService() {
     }
 
     allow(details)
+    if (announcedElsewhere) Notifier.callAnnouncedOtherNumber(this, expected!!.bankName)
   }
 
   private fun allow(details: Call.Details) {

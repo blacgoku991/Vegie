@@ -52,7 +52,7 @@ export default function Code() {
       <Card tone="warning" style={{ flexDirection: "row", gap: space.md, marginTop: space.lg }}>
         <Icon name="alert" color={tones.warning.fg} />
         <Text color={tones.warning.fg} style={{ flex: 1 }}>
-          Ce code est secret. Ne le donnez jamais à personne, même à quelqu'un qui dit travailler pour Vigie ou votre banque.
+          Ce code est secret. Ne le donnez jamais à personne, même à quelqu'un qui dit travailler pour SmartSecure ou votre banque.
         </Text>
       </Card>
       <Button

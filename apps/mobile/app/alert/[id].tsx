@@ -1,6 +1,6 @@
 import { StyleSheet, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { verdicts, type CheckKey, type IconName } from "@vigie/shared";
+import { verdictMeta, type CheckKey, type IconName } from "@vigie/shared";
 import { api } from "@/api";
 import { sourceLabel, when } from "@/format";
 import { useLoad } from "@/useLoad";
@@ -25,13 +25,14 @@ export default function AlertDetail() {
     );
   }
 
-  const tone = tones[verdicts[alert.verdict].tone];
-  const isScam = alert.verdict !== "safe";
+  const meta = verdictMeta(alert.verdict, alert.incomplete);
+  const tone = tones[meta.tone];
+  const isScam = meta.tone !== "positive";
 
   return (
     <Screen back footer={<Button label="J'ai compris" onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))} />}>
       <FadeIn style={{ gap: space.md }}>
-        <VerdictBadge verdict={alert.verdict} size="lg" />
+        <VerdictBadge verdict={alert.verdict} incomplete={alert.incomplete} size="lg" />
         <Text variant={alert.explanation.length > 70 ? "heading" : "title"} accessibilityRole="header">
           {alert.explanation}
         </Text>
@@ -43,18 +44,18 @@ export default function AlertDetail() {
       </FadeIn>
 
       <FadeIn delay={100}>
-        <Card tone={verdicts[alert.verdict].tone} style={{ marginTop: space.lg, flexDirection: "row", gap: space.md }}>
+        <Card tone={meta.tone} style={{ marginTop: space.lg, flexDirection: "row", gap: space.md }}>
           <Icon name={isScam ? "alert" : "check"} color={tone.fg} />
           <View style={{ flex: 1, gap: 4 }}>
             <Text variant="bodyStrong" color={tone.fg}>
-              {isScam ? "Que faire ?" : "Bonne nouvelle"}
+              {isScam ? "Que faire ?" : "Aucun signe d'arnaque détecté"}
             </Text>
             <Text color={tone.fg}>{alert.advice}</Text>
           </View>
         </Card>
       </FadeIn>
 
-      <Section title="Ce que Vigie a vérifié">
+      <Section title="Ce que SmartSecure a vérifié">
         <View style={styles.list}>
           {alert.checks.map((c, i) => (
             <FadeIn key={c.key} delay={160 + i * 70}>

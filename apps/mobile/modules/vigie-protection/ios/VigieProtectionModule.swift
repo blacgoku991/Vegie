@@ -3,8 +3,8 @@ import ExpoModulesCore
 import UIKit
 
 /// Groupe d'apps partagé avec les extensions (doit correspondre à app.config.ts).
-let vigieAppGroup = "group.fr.vigie.app"
-let vigieCallDirectoryId = "fr.vigie.app.calldirectory"
+let vigieAppGroup = "group.fr.smartfixx.antiarnaque"
+let vigieCallDirectoryId = "fr.smartfixx.antiarnaque.calldirectory"
 
 /// Pont JavaScript ⇄ iOS : partage la session et l'annuaire avec les extensions
 /// (annuaire d'appels, extension Partager) via l'App Group.

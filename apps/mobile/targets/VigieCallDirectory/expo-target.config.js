@@ -3,7 +3,7 @@
 module.exports = (config) => ({
   type: "call-directory",
   name: "VigieCallDirectory",
-  displayName: "Vigie",
+  displayName: "SmartSecure",
   bundleIdentifier: ".calldirectory",
   deploymentTarget: "15.1",
   frameworks: ["CallKit"],

@@ -64,4 +64,11 @@ export interface AnalysisResult {
   /** Marque imitée, si identifiée. */
   brand: string | null;
   aiUsed: boolean;
+  /**
+   * Un contrôle important a échoué ou était indisponible (liste noire, âge du domaine, visite du site, IA).
+   * Un verdict « sûr » ne doit alors jamais être présenté en vert.
+   */
+  incomplete: boolean;
+  /** Contrôles manquants, pour les journaux et les tests. */
+  missingChecks: string[];
 }

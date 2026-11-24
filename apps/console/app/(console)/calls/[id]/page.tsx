@@ -65,7 +65,7 @@ export default function CallPage({ params }: { params: Promise<{ id: string }> }
           <div>
             <strong style={{ fontSize: 20 }}>Composez maintenant le {call.client.phone}</strong>
             <p className="soft">
-              depuis le {call.callerNumber ? formatPhone(call.callerNumber) : "numéro de votre agence"}. L'annonce reste valable jusqu'à {timeFr(call.expiresAt)}.
+              depuis le {call.callerNumber ? formatPhone(call.callerNumber) : "numéro de votre agence"}. Seul un appel venant de ce numéro est validé. L'annonce reste valable jusqu'à {timeFr(call.expiresAt)}.
             </p>
           </div>
         </div>

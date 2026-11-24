@@ -41,7 +41,7 @@ export default function Contacts() {
 
   return (
     <Screen back title="Mon proche">
-      <Text color="soft">En cas d'appel suspect ou d'arnaque, Vigie peut prévenir une personne de confiance par SMS.</Text>
+      <Text color="soft">En cas d'appel suspect ou d'arnaque, SmartSecure peut prévenir une personne de confiance par SMS.</Text>
 
       <View style={{ marginTop: space.lg, gap: space.sm + 4 }}>
         {data?.map((c) => (
@@ -61,7 +61,7 @@ export default function Contacts() {
         {me ? (
           <ToggleRow
             title="Prévenir automatiquement"
-            subtitle="Un SMS rassurant part si Vigie bloque une arnaque (une fois par jour au plus)."
+            subtitle="Un SMS rassurant part si SmartSecure bloque une arnaque (une fois par jour au plus)."
             value={me.settings.notifyContactOnScam}
             onChange={(v) => void toggle(v)}
           />

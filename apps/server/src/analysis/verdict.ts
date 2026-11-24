@@ -89,5 +89,9 @@ export function adviceFor(verdict: Verdict, source: string): string {
   if (verdict === "suspicious") {
     return "Dans le doute, ne cliquez pas. Allez vous-même sur le site officiel ou appelez le numéro habituel de l'organisme.";
   }
-  return "Rien d'inquiétant : vous pouvez le lire normalement.";
+  return "Rien d'inquiétant n'a été trouvé : vous pouvez le lire normalement.";
 }
+
+/** Verdict « sûr » alors qu'un contrôle important manque : on le dit, sans rassurer. */
+export const INCOMPLETE_EXPLANATION = "Vérification incomplète : restez prudent. SmartSecure n'a pas pu tout contrôler.";
+export const INCOMPLETE_ADVICE = "Ne cliquez sur aucun lien et n'appelez aucun numéro écrit dans ce message. En cas de doute, allez vous-même sur le site officiel.";

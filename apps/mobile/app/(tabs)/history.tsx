@@ -13,7 +13,7 @@ const verdictFilters: Array<{ label: string; value?: Verdict }> = [
   { label: "Tout" },
   { label: "Arnaques", value: "scam" },
   { label: "Douteux", value: "suspicious" },
-  { label: "Sûrs", value: "safe" },
+  { label: "Rien d'anormal", value: "safe" },
 ];
 const sourceFilters: Array<{ label: string; value?: AlertSource; icon?: "mail" | "message" | "share" }> = [
   { label: "Toutes sources" },

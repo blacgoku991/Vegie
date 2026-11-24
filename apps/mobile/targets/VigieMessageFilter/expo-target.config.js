@@ -6,7 +6,7 @@ const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4000";
 module.exports = () => ({
   type: "message-filter",
   name: "VigieMessageFilter",
-  displayName: "Vigie",
+  displayName: "SmartSecure",
   bundleIdentifier: ".messagefilter",
   deploymentTarget: "16.0",
   frameworks: ["IdentityLookup"],

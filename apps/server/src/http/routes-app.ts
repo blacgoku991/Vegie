@@ -6,6 +6,7 @@ import type {
   AuthVerifyResponse,
   Bank,
   CallCheckResponse,
+  CallMatch,
   HomeResponse,
   Me,
   PhoneDirectory,
@@ -20,7 +21,7 @@ import { otpCode, sha256 } from "../lib/crypto.ts";
 import { sendSms } from "../lib/sms.ts";
 import { analyze } from "../analysis/analyze.ts";
 import { alertColumns, processMessage, toDetail, toSummary } from "../services/alerts.ts";
-import { activeCallFor, confirmCall, markSeen } from "../services/calls.ts";
+import { activeCallFor, confirmCall, consumeMatch, markSeen } from "../services/calls.ts";
 import { HttpError, createSession, destroySession, notFound, requireUser } from "./context.ts";
 
 const phoneSchema = z.string().transform((v, ctx) => {
@@ -133,18 +134,21 @@ export async function appRoutes(app: FastifyInstance) {
     const userId = await requireUser(req);
     const [me, stats, alerts, activeCall] = await Promise.all([
       one<{ first_name: string | null; blocked_count: number }>("select first_name, blocked_count from users where id = $1", [userId]),
-      one<{ mails: number; banks: number }>(
+      one<{ mails: number; mails_error: number; banks: number }>(
         `select (select count(*)::int from mailboxes where user_id = $1 and status = 'active') as mails,
+                (select count(*)::int from mailboxes where user_id = $1 and status <> 'active') as mails_error,
                 (select count(*)::int from user_banks where user_id = $1) as banks`,
         [userId],
       ),
-      many<any>(`select ${alertColumns} from alerts where user_id = $1 and verdict <> 'safe' order by received_at desc limit 3`, [userId]),
+      many<any>(`select ${alertColumns} from alerts where user_id = $1 and (verdict <> 'safe' or incomplete) order by received_at desc limit 3`, [userId]),
       activeCallFor(userId),
     ]);
     return {
       firstName: me?.first_name ?? null,
       blockedCount: me?.blocked_count ?? 0,
-      sources: { calls: (stats?.banks ?? 0) > 0, mails: stats?.mails ?? 0, messages: true },
+      // Le serveur ne connaît que les banques et les boîtes mail. Appels et SMS dépendent des réglages
+      // du téléphone : seule l'app peut les lire, le serveur ne prétend rien à leur sujet.
+      sources: { banks: stats?.banks ?? 0, mails: stats?.mails ?? 0, mailsInError: stats?.mails_error ?? 0 },
       latestAlerts: alerts.map(toSummary),
       activeCall,
     };
@@ -246,14 +250,17 @@ export async function appRoutes(app: FastifyInstance) {
     const userId = await requireUser(req);
     const call = await activeCallFor(userId);
     const number = req.query.number ? normalizePhone(req.query.number) : null;
-    // Si le numéro est connu, il doit correspondre à celui annoncé par le conseiller.
-    const certified = !!call && (!number || !call.callerNumber || call.callerNumber === number);
-    if (call && certified) await markSeen(userId, call.id);
+    // Une annonce ne valide que l'appel venant du numéro annoncé. Sans numéro (iPhone, bouton manuel),
+    // on sait seulement qu'un appel était prévu : jamais « certifié ».
+    const match: CallMatch = !number ? "number_unknown" : call?.callerNumber && call.callerNumber === number ? "number_match" : "number_mismatch";
+    // Premier appel concordant seulement : l'annonce est consommée, un second check concordant n'est plus certifié.
+    const certified = !!call && match === "number_match" && (await consumeMatch(userId, call.id));
+    if (call && !certified && match === "number_unknown") await markSeen(userId, call.id);
     const banks = await many<BankRow>(
       `select b.id, b.slug, b.name, b.partner, b.official_phone from user_banks ub join banks b on b.id = ub.bank_id where ub.user_id = $1`,
       [userId],
     );
-    return { certified, call: certified ? call : null, banks: banks.map(toBank) };
+    return { certified, match: call ? (match === "number_match" && !certified ? "number_mismatch" : match) : "number_unknown", call, banks: banks.map(toBank) };
   });
 
   app.post<{ Params: { id: string } }>("/me/calls/:id/confirm", async (req) => {
@@ -351,9 +358,15 @@ export async function appRoutes(app: FastifyInstance) {
     });
     if (!out) {
       const existing = await one<any>(`select ${alertColumns} from alerts where user_id = $1 and fingerprint = $2`, [userId, sha256(`${body.sender ?? ""}|${body.text}`)]);
-      return { verdict: existing?.verdict ?? "safe", explanation: existing?.explanation ?? "", advice: existing?.advice ?? "", alertId: existing?.id ?? null };
+      return {
+        verdict: existing?.verdict ?? "suspicious",
+        explanation: existing?.explanation ?? "",
+        advice: existing?.advice ?? "",
+        alertId: existing?.id ?? null,
+        incomplete: existing ? !!existing.incomplete : true,
+      };
     }
-    return { verdict: out.alert.verdict, explanation: out.alert.explanation, advice: out.alert.advice, alertId: out.alert.id };
+    return { verdict: out.alert.verdict, explanation: out.alert.explanation, advice: out.alert.advice, alertId: out.alert.id, incomplete: out.alert.incomplete };
   });
 
   /**

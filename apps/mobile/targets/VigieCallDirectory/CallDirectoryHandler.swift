@@ -8,7 +8,7 @@ import Foundation
 ///   « On m'appelle de ma banque » dans l'app.
 /// Les données viennent de l'app via l'App Group (directory.json), rechargées à chaque synchronisation.
 final class CallDirectoryHandler: CXCallDirectoryProvider {
-  private let appGroup = "group.fr.vigie.app"
+  private let appGroup = "group.fr.smartfixx.antiarnaque"
 
   private struct Directory: Decodable {
     struct BankNumber: Decodable { let number: String; let bankName: String }
@@ -27,11 +27,11 @@ final class CallDirectoryHandler: CXCallDirectoryProvider {
 
     for r in directory?.reportedNumbers ?? [] {
       guard let n = Self.numeric(r.number) else { continue }
-      if r.reports >= 10 { blocked.insert(n) } else { labels[n] = "⚠︎ Arnaque signalée (Vigie)" }
+      if r.reports >= 10 { blocked.insert(n) } else { labels[n] = "⚠︎ Arnaque signalée (SmartSecure)" }
     }
     for b in directory?.bankNumbers ?? [] {
       guard let n = Self.numeric(b.number), !blocked.contains(n) else { continue }
-      labels[n] = "\(b.bankName) ? Vérifiez dans Vigie"
+      labels[n] = "\(b.bankName) ? Vérifiez dans SmartSecure"
     }
 
     if context.isIncremental { context.removeAllBlockingEntries(); context.removeAllIdentificationEntries() }

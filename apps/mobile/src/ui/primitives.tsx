@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Switch, TextInput, View, type TextInputProps, type ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { verdicts, type CheckStatus, type IconName, type Verdict } from "@vigie/shared";
+import { verdictMeta, type CheckStatus, type IconName, type Verdict } from "@vigie/shared";
 import { Icon } from "./Icon";
 import { Text } from "./Text";
 import { gutter, palette, radius, shadow, space, tones, touch, typo, type Tone } from "./theme";
@@ -94,8 +94,8 @@ export function Card({ children, style, tone }: { children: ReactNode; style?: V
 // ───────────── Verdicts ─────────────
 
 /** Verdict : toujours icône + mot + couleur. */
-export function VerdictBadge({ verdict, size = "md", onTint }: { verdict: Verdict; size?: "md" | "lg"; onTint?: boolean }) {
-  const v = verdicts[verdict];
+export function VerdictBadge({ verdict, incomplete = false, size = "md", onTint }: { verdict: Verdict; incomplete?: boolean; size?: "md" | "lg"; onTint?: boolean }) {
+  const v = verdictMeta(verdict, incomplete);
   return <ToneBadge tone={v.tone} icon={v.icon} label={v.label} size={size} onTint={onTint} />;
 }
 

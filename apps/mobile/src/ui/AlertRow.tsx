@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from "react-native";
 import { router } from "expo-router";
-import { verdicts, type AlertSummary } from "@vigie/shared";
+import { verdictMeta, type AlertSummary } from "@vigie/shared";
 import { sourceIcon, sourceLabel, when } from "../format";
 import { Icon } from "./Icon";
 import { VerdictBadge } from "./primitives";
@@ -12,12 +12,12 @@ export function AlertRow({ alert }: { alert: AlertSummary }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${verdicts[alert.verdict].label}. ${sourceLabel[alert.source]} ${alert.sender ? `de ${alert.sender}` : ""}. ${alert.explanation}`}
+      accessibilityLabel={`${verdictMeta(alert.verdict, alert.incomplete).label}. ${sourceLabel[alert.source]} ${alert.sender ? `de ${alert.sender}` : ""}. ${alert.explanation}`}
       onPress={() => router.push(`/alert/${alert.id}`)}
       style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
     >
       <View style={styles.top}>
-        <VerdictBadge verdict={alert.verdict} />
+        <VerdictBadge verdict={alert.verdict} incomplete={alert.incomplete} />
         {!alert.read ? <View style={[styles.dot, { backgroundColor: palette.accent }]} accessibilityLabel="Non lu" /> : null}
       </View>
       <Text variant="bodyStrong" numberOfLines={2}>

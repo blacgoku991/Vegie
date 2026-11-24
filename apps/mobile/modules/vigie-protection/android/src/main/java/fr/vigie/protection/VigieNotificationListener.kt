@@ -72,8 +72,10 @@ class VigieNotificationListener : NotificationListenerService() {
       val body = JSONObject().put("source", source).put("sender", sender).put("text", text.take(5000)).put("app", appName)
       val res = Api.post(store, "/me/scan", body, 20_000) ?: return@execute
       val verdict = res.optString("verdict")
-      if (verdict == "scam" || verdict == "suspicious") {
-        Notifier.message(this, verdict, res.optString("explanation"), res.optString("alertId").takeIf { it.isNotBlank() && it != "null" }, appName)
+      val incomplete = verdict == "safe" && res.optBoolean("incomplete", false)
+      if (verdict == "scam" || verdict == "suspicious" || incomplete) {
+        val shown = if (incomplete) "incomplete" else verdict
+        Notifier.message(this, shown, res.optString("explanation"), res.optString("alertId").takeIf { it.isNotBlank() && it != "null" }, appName)
       }
     }
   }

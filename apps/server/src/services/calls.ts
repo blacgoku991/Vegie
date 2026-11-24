@@ -1,11 +1,14 @@
 import type { CallStatus, CertifiedCall, ConsoleCall } from "@vigie/shared";
-import { formatPhone } from "@vigie/shared";
+import { formatPhone, normalizePhone } from "@vigie/shared";
 import { many, one } from "../db/pool.ts";
 import { pushToUser } from "../lib/push.ts";
 import { HttpError, notFound, type AdvisorCtx } from "../http/context.ts";
 
-/** Durée pendant laquelle un appel annoncé reste « certifié » (il peut durer). */
-const CALL_WINDOW_MIN = 30;
+/**
+ * Durée de validité d'une annonce. Courte : elle sert à reconnaître l'appel qui arrive juste après.
+ * Elle est consommée dès que le client répond (confirmation ou refus) ou que le conseiller y met fin.
+ */
+export const CALL_WINDOW_MIN = 10;
 
 interface CallRow {
   id: string;
@@ -47,14 +50,25 @@ export function toCall(r: CallRow): CertifiedCall {
   };
 }
 
-/** Appel certifié en cours pour ce client (le plus récent), s'il existe. */
+/** Annonce encore valable pour ce client (la plus récente) : ni confirmée, ni refusée, ni terminée, ni expirée. */
 export async function activeCallFor(userId: string): Promise<CertifiedCall | null> {
   const row = await one<CallRow>(
-    `${callSelect} where c.user_id = $1 and c.status in ('announced', 'seen', 'confirmed') and c.expires_at > now()
+    `${callSelect} where c.user_id = $1 and c.status in ('announced', 'seen') and c.expires_at > now()
      order by c.created_at desc limit 1`,
     [userId],
   );
   return row ? toCall(row) : null;
+}
+
+/** Consomme l'annonce au premier appel concordant. Renvoie false si elle l'était déjà. */
+export async function consumeMatch(userId: string, callId: string): Promise<boolean> {
+  const row = await one<{ id: string }>(
+    `update certified_calls set matched_at = now(), status = case when status = 'announced' then 'seen' else status end,
+       seen_at = coalesce(seen_at, now())
+     where id = $1 and user_id = $2 and matched_at is null returning id`,
+    [callId, userId],
+  );
+  return !!row;
 }
 
 export async function markSeen(userId: string, callId: string) {
@@ -77,7 +91,14 @@ export async function startCall(advisor: AdvisorCtx, input: { userId: string; re
   if (!link) throw notFound("Ce client n'a pas ajouté votre banque dans Vigie");
   if (link.status !== "certified") throw new HttpError(409, "not_linked", "Confirmez d'abord l'identité du client (lien en attente).");
 
-  const callerNumber = input.callerNumber ?? advisor.outboundNumber;
+  // Une annonce ne valide que l'appel venant du numéro annoncé : on exige donc un numéro.
+  // Ordre : numéro saisi, numéro sortant du conseiller, à défaut numéro officiel de la banque.
+  const bank = await one<{ official_phone: string | null; official_numbers: string[] | null }>("select official_phone, official_numbers from banks where id = $1", [advisor.bankId]);
+  const raw = input.callerNumber ?? advisor.outboundNumber ?? bank?.official_phone ?? bank?.official_numbers?.[0] ?? null;
+  const callerNumber = raw ? normalizePhone(raw) : null;
+  if (!callerNumber) {
+    throw new HttpError(400, "caller_number_required", "Indiquez le numéro depuis lequel vous allez appeler : l'annonce ne valide que l'appel venant de ce numéro.");
+  }
   const created = await one<{ id: string }>(
     `insert into certified_calls (bank_id, advisor_id, user_id, reason, caller_number, expires_at)
      values ($1, $2, $3, $4, $5, now() + ($6 || ' minutes')::interval) returning id`,
@@ -88,8 +109,8 @@ export async function startCall(advisor: AdvisorCtx, input: { userId: string; re
   // Notification immédiate : elle arrive avant la sonnerie.
   // Le motif n'est pas dans la notification (il peut être personnel) : il s'affiche dans l'app.
   await pushToUser(input.userId, {
-    title: `Appel certifié · ${advisor.bankName}`,
-    body: `${advisor.name} (${advisor.agency}) va vous appeler. Vous pouvez décrocher en confiance.`,
+    title: `Appel annoncé · ${advisor.bankName}`,
+    body: `${advisor.name} (${advisor.agency}) a prévu de vous appeler. Ne donnez jamais de code ni de virement.`,
     data: {
       type: "certified_call",
       callId: call.id,
@@ -122,7 +143,7 @@ export async function consoleCall(callId: string, bankId: string): Promise<Conso
   if (!r) throw notFound("Appel introuvable");
   const timeline: ConsoleCall["timeline"] = [{ at: r.created_at.toISOString(), status: "announced", label: "Annonce envoyée sur le téléphone du client" }];
   if (r.seen_at) timeline.push({ at: r.seen_at.toISOString(), status: "seen", label: "Le client a vu l'annonce" });
-  if (r.confirmed_at) timeline.push({ at: r.confirmed_at.toISOString(), status: "confirmed", label: "Le client a confirmé que c'est bien vous" });
+  if (r.confirmed_at) timeline.push({ at: r.confirmed_at.toISOString(), status: "confirmed", label: "Le client a confirmé parler à cette personne" });
   if (r.ended_at) {
     timeline.push({ at: r.ended_at.toISOString(), status: r.status, label: r.status === "rejected" ? "Le client a refusé l'appel" : "Appel terminé" });
   } else if (effectiveStatus(r) === "expired") {

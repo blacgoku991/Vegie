@@ -21,7 +21,7 @@ export default function Settings() {
       await signOut();
     };
     if (Platform.OS === "web") return void run();
-    Alert.alert("Supprimer mon compte ?", "Toutes vos données Vigie seront effacées. Vous ne serez plus protégé.", [
+    Alert.alert("Supprimer mon compte ?", "Toutes vos données SmartSecure seront effacées. Vous ne serez plus protégé.", [
       { text: "Annuler", style: "cancel" },
       { text: "Supprimer", style: "destructive", onPress: () => void run() },
     ]);

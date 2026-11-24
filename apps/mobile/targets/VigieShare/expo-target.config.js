@@ -3,7 +3,7 @@
 module.exports = (config) => ({
   type: "share",
   name: "VigieShare",
-  displayName: "Vigie",
+  displayName: "SmartSecure",
   bundleIdentifier: ".share",
   deploymentTarget: "16.0",
   frameworks: ["SwiftUI", "UniformTypeIdentifiers"],

@@ -32,7 +32,7 @@ export default function Name() {
       }
     >
       <Text color="soft" style={{ marginBottom: space.lg }}>
-        Votre prénom sert à personnaliser Vigie et à rassurer votre proche si nous le prévenons.
+        Votre prénom sert à personnaliser SmartSecure et à rassurer votre proche si nous le prévenons.
       </Text>
       <Field label="Votre prénom" placeholder="Jeanne" value={name} onChangeText={setName} autoCapitalize="words" autoComplete="given-name" autoFocus />
     </Screen>

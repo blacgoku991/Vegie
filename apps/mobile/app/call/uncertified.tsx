@@ -66,7 +66,7 @@ export default function CallUncertified() {
       title={hungUp ? "Bien joué." : "Raccrochez."}
       subtitle={
         state?.offline
-          ? "Vigie n'a pas pu vérifier cet appel. Par prudence, raccrochez et rappelez vous-même votre banque."
+          ? "SmartSecure n'a pas pu vérifier cet appel. Par prudence, raccrochez et rappelez vous-même votre banque."
           : "Votre banque n'a annoncé aucun appel. C'est peut-être un escroc qui se fait passer pour elle."
       }
     >
@@ -77,7 +77,7 @@ export default function CallUncertified() {
           icon="phoneOff"
           label={canEnd ? "Raccrocher maintenant" : "J'ai raccroché"}
           onPress={() => void hangUp()}
-          hint={canEnd ? "Termine l'appel en cours" : "Indique à Vigie que vous avez raccroché"}
+          hint={canEnd ? "Termine l'appel en cours" : "Indique à SmartSecure que vous avez raccroché"}
         />
       ) : (
         <Card tone="positive" style={{ flexDirection: "row", gap: space.md, alignItems: "center", padding: space.md }}>

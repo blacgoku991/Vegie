@@ -20,7 +20,7 @@ export default function Mailboxes() {
         <Card tone="positive" style={{ flexDirection: "row", gap: space.md, marginBottom: space.lg }}>
           <Icon name="check" color={tones.positive.fg} />
           <Text color={tones.positive.fg} style={{ flex: 1 }}>
-            Boîte connectée. Vigie vérifiera chaque nouveau mail.
+            Boîte connectée. SmartSecure vérifiera chaque nouveau mail.
           </Text>
         </Card>
       ) : error ? (
@@ -30,7 +30,7 @@ export default function Mailboxes() {
       ) : null}
 
       <View style={{ gap: space.sm + 4 }}>
-        {data && !data.length ? <Empty icon="mail" title="Aucune boîte mail" text="Ajoutez vos adresses mail : Vigie vous préviendra dès qu'un mail est dangereux." /> : null}
+        {data && !data.length ? <Empty icon="mail" title="Aucune boîte mail" text="Ajoutez vos adresses mail : SmartSecure vous préviendra dès qu'un mail est dangereux." /> : null}
         {data?.map((m) => (
           <Card key={m.id} style={{ gap: space.sm }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
@@ -62,7 +62,7 @@ export default function Mailboxes() {
           <Text variant="bodyStrong">Vos mails restent privés</Text>
         </View>
         <Text color="soft">
-          Vigie lit vos nouveaux mails uniquement pour repérer les arnaques. Il ne peut ni envoyer, ni supprimer, ni répondre. Le contenu n'est jamais conservé.
+          SmartSecure lit vos nouveaux mails uniquement pour repérer les arnaques. Il ne peut ni envoyer, ni supprimer, ni répondre. Le contenu n'est jamais conservé.
         </Text>
       </Card>
     </Screen>

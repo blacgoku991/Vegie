@@ -31,6 +31,8 @@ export interface AlertSummary {
   sender: string | null;
   receivedAt: string;
   read: boolean;
+  /** Un contrôle important n'a pas pu être fait (liste noire, site, IA…) : ne jamais afficher « sûr » en vert. */
+  incomplete: boolean;
 }
 
 export interface AlertDetail extends AlertSummary {
@@ -104,7 +106,7 @@ export interface CertifiedCall {
   advisorName: string;
   agency: string;
   reason: string;
-  /** Numéro depuis lequel le conseiller appelle (E.164). */
+  /** Numéro depuis lequel le conseiller appelle (E.164). Seul l'appel venant de ce numéro est validé. */
   callerNumber: string | null;
   status: CallStatus;
   createdAt: string;
@@ -115,11 +117,17 @@ export type CallStatus = "announced" | "seen" | "confirmed" | "ended" | "expired
 
 /** Réponse au bouton « On m'appelle de ma banque ». */
 export interface CallCheckResponse {
+  /** Vrai seulement si le numéro de l'appelant est connu ET correspond à celui annoncé. */
   certified: boolean;
+  /** Rapport entre l'appel entrant et l'annonce : inconnu quand l'appareil ne voit pas le numéro (iPhone). */
+  match: CallMatch;
+  /** Annonce en cours (même si le numéro ne correspond pas), sinon null. */
   call: CertifiedCall | null;
   /** Banques de l'utilisateur, pour proposer le rappel du numéro officiel. */
   banks: Bank[];
 }
+
+export type CallMatch = "number_match" | "number_mismatch" | "number_unknown";
 
 export type CallAction = "hung_up" | "called_back" | "alerted_contact" | "confirmed";
 
@@ -172,15 +180,19 @@ export interface TrustedContact {
   phone: string;
 }
 
+/** Ce que le serveur sait. L'état des appels et des SMS dépend du téléphone : c'est l'app qui le lit. */
 export interface ProtectionSources {
-  calls: boolean;
+  /** Banques ajoutées. */
+  banks: number;
+  /** Boîtes mail connectées et en bon état. */
   mails: number;
-  messages: boolean;
+  /** Boîtes mail connectées mais en erreur ou en pause. */
+  mailsInError: number;
 }
 
 export interface HomeResponse {
   firstName: string | null;
-  /** Nombre d'arnaques bloquées depuis l'inscription. */
+  /** Nombre de messages classés « arnaque » depuis l'inscription (signalés, pas forcément évités). */
   blockedCount: number;
   sources: ProtectionSources;
   latestAlerts: AlertSummary[];
@@ -201,6 +213,7 @@ export interface ScanMessageResponse {
   explanation: string;
   advice: string;
   alertId: string | null;
+  incomplete: boolean;
 }
 
 /** Annuaire téléphonique poussé vers le téléphone (filtrage d'appels hors ligne). */

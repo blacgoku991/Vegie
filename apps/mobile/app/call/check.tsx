@@ -22,13 +22,18 @@ export default function CallCheck() {
         ]);
       } catch {
         // Impossible de vérifier : par prudence, on considère l'appel comme non certifié.
-        result = { certified: false, call: null, banks: [], offline: true };
+        result = { certified: false, match: "number_unknown", call: null, banks: [], offline: true };
       }
       const wait = Math.max(0, 1400 - (Date.now() - started));
       setTimeout(() => {
         if (cancelled) return;
         callState.set(result);
-        router.replace(result!.certified ? { pathname: "/call/certified", params: { id: result!.call!.id } } : "/call/uncertified");
+        // Une annonce existe et ne contredit pas le numéro : écran « appel annoncé ». Sinon : non certifié.
+        // « verified » seulement si l'appareil a vu le numéro de l'appelant et qu'il correspond (Android).
+        const announced = !!result!.call && result!.match !== "number_mismatch";
+        router.replace(
+          announced ? { pathname: "/call/certified", params: { id: result!.call!.id, verified: result!.certified ? "1" : "0" } } : "/call/uncertified",
+        );
       }, wait);
     })();
     return () => {

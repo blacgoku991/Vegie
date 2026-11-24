@@ -29,7 +29,7 @@ export default function Login() {
   return (
     <Screen back title="Votre numéro de portable" footer={<Button label="Recevoir mon code" disabled={!valid} loading={busy} onPress={() => void send()} />}>
       <Text color="soft" style={{ marginBottom: space.lg }}>
-        Vigie vous envoie un code par SMS pour vérifier que ce téléphone est bien le vôtre.
+        SmartSecure vous envoie un code par SMS pour vérifier que ce téléphone est bien le vôtre.
       </Text>
       <Field
         label="Numéro de portable"

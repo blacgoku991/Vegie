@@ -13,7 +13,7 @@ const statusLook: Record<BankLinkStatus, { tone: Tone; icon: IconName; label: st
     tone: "positive",
     icon: "check",
     label: "Appels certifiés",
-    text: "Chaque appel de votre conseiller est annoncé dans Vigie. Un appel non annoncé est signalé.",
+    text: "Chaque appel de votre conseiller est annoncé dans SmartSecure. Un appel non annoncé est signalé.",
   },
   pending: {
     tone: "neutral",
@@ -25,7 +25,7 @@ const statusLook: Record<BankLinkStatus, { tone: Tone; icon: IconName; label: st
     tone: "neutral",
     icon: "shield",
     label: "Protection de base",
-    text: "Vigie connaît les sites et numéros officiels de cette banque et repère ceux qui l'imitent.",
+    text: "SmartSecure connaît les sites et numéros officiels de cette banque et repère ceux qui l'imitent.",
   },
 };
 
@@ -43,12 +43,12 @@ export default function Banks() {
 
   return (
     <Screen back title="Mes banques" footer={!adding ? <Button icon="plus" label="Ajouter une banque" onPress={() => setAdding(true)} /> : undefined}>
-      <Text color="soft">Ajoutez toutes vos banques. Avec une banque partenaire de Vigie, les appels de votre conseiller sont certifiés.</Text>
+      <Text color="soft">Ajoutez toutes vos banques. Avec une banque partenaire de SmartSecure, les appels de votre conseiller sont certifiés.</Text>
 
       {adding ? (
         <Section title="Choisissez votre banque" action={<Pressable accessibilityRole="button" onPress={() => setAdding(false)} style={{ minHeight: 48, justifyContent: "center" }}><Text variant="label" color="accent">Annuler</Text></Pressable>}>
           {available.map((b) => (
-            <ListRow key={b.id} icon="bank" title={b.name} subtitle={b.partner ? "Partenaire Vigie : appels certifiés" : "Protection de base"} onPress={() => void add(b.id)} />
+            <ListRow key={b.id} icon="bank" title={b.name} subtitle={b.partner ? "Partenaire SmartSecure : appels certifiés" : "Protection de base"} onPress={() => void add(b.id)} />
           ))}
         </Section>
       ) : null}

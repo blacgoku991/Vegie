@@ -1,12 +1,14 @@
 import type { ExpoConfig } from "expo/config";
 
-const BUNDLE_ID = "fr.vigie.app";
+// Identifiant définitif (Apple et Play Store), indépendant du nom commercial ; même préfixe que les autres outils
+// SmartFixx (fr.smartfixx.smartremote). Les extensions Swift reprennent ces valeurs en dur.
+const BUNDLE_ID = "fr.smartfixx.antiarnaque";
 const APP_GROUP = `group.${BUNDLE_ID}`;
 const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:4000";
 const apiHost = new URL(apiUrl).host;
 
 const config: ExpoConfig = {
-  name: "Vigie",
+  name: "SmartSecure",
   slug: "vigie",
   scheme: "vigie",
   version: "0.1.0",
@@ -30,7 +32,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: BUNDLE_ID,
-    adaptiveIcon: { foregroundImage: "./assets/adaptive-icon.png", backgroundColor: "#F7F5F0" },
+    adaptiveIcon: { foregroundImage: "./assets/adaptive-icon.png", backgroundImage: "./assets/adaptive-icon-background.png", backgroundColor: "#B23CF5" },
     // ANSWER_PHONE_CALLS : bouton « Raccrocher » pendant un appel non certifié.
     permissions: ["ANSWER_PHONE_CALLS", "POST_NOTIFICATIONS"],
     blockedPermissions: ["android.permission.READ_CONTACTS", "android.permission.READ_CALL_LOG", "android.permission.READ_SMS"],

@@ -34,10 +34,10 @@ final class ShareModel: ObservableObject {
   func run(items: [NSExtensionItem]) async {
     let text = await Self.extractText(items)
     guard !text.isEmpty else { state = .failed("Aucun texte à vérifier."); return }
-    let defaults = UserDefaults(suiteName: "group.fr.vigie.app")
+    let defaults = UserDefaults(suiteName: "group.fr.smartfixx.antiarnaque")
     guard let api = defaults?.string(forKey: "apiUrl"), let token = defaults?.string(forKey: "token"),
           let url = URL(string: "\(api)/v1/me/scan")
-    else { state = .failed("Ouvrez d'abord l'application Vigie pour vous connecter."); return }
+    else { state = .failed("Ouvrez d'abord l'application SmartSecure pour vous connecter."); return }
 
     var req = URLRequest(url: url, timeoutInterval: 25)
     req.httpMethod = "POST"
@@ -48,9 +48,12 @@ final class ShareModel: ObservableObject {
       let (data, response) = try await URLSession.shared.data(for: req)
       guard (response as? HTTPURLResponse)?.statusCode == 200,
             let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-      else { state = .failed("Vigie n'a pas pu vérifier ce message. Réessayez."); return }
+      else { state = .failed("SmartSecure n'a pas pu vérifier ce message. Réessayez."); return }
+      // « Sûr » avec un contrôle manquant n'est jamais affiché en vert.
+      var verdict = json["verdict"] as? String ?? "suspicious"
+      if verdict == "safe", (json["incomplete"] as? Bool) != false { verdict = "incomplete" }
       state = .result(
-        verdict: json["verdict"] as? String ?? "suspicious",
+        verdict: verdict,
         explanation: json["explanation"] as? String ?? "",
         advice: json["advice"] as? String ?? ""
       )
@@ -86,7 +89,8 @@ struct ShareView: View {
     switch verdict {
     case "scam": return (Color(red: 0.70, green: 0.15, blue: 0.12), "xmark.octagon.fill", "Arnaque")
     case "suspicious": return (Color(red: 0.63, green: 0.31, blue: 0.0), "exclamationmark.triangle.fill", "Douteux")
-    default: return (Color(red: 0.04, green: 0.42, blue: 0.24), "checkmark.circle.fill", "Sûr")
+    case "incomplete": return (Color(red: 0.63, green: 0.31, blue: 0.0), "exclamationmark.triangle.fill", "Vérification incomplète")
+    default: return (Color(red: 0.04, green: 0.42, blue: 0.24), "checkmark.circle.fill", "Aucun signe d'arnaque détecté")
     }
   }
 
@@ -96,7 +100,7 @@ struct ShareView: View {
       case .loading:
         Spacer()
         ProgressView().scaleEffect(1.6).frame(maxWidth: .infinity)
-        Text("Vigie vérifie ce message…").font(.title2.bold()).frame(maxWidth: .infinity)
+        Text("SmartSecure vérifie ce message…").font(.title2.bold()).frame(maxWidth: .infinity)
         Spacer()
       case let .result(verdict, explanation, advice):
         let (color, icon, label) = look(verdict)

@@ -76,7 +76,8 @@ export async function consoleRoutes(app: FastifyInstance) {
     const body = z
       .object({ userId: z.string().uuid(), reason: z.string().trim().min(3).max(120), callerNumber: z.string().nullish() })
       .parse(req.body);
-    const callerNumber = body.callerNumber ? normalizePhone(body.callerNumber) : null;
+    const callerNumber = body.callerNumber?.trim() ? normalizePhone(body.callerNumber) : null;
+    if (body.callerNumber?.trim() && !callerNumber) throw new HttpError(400, "bad_number", "Ce numéro d'appel n'est pas valide.");
     return startCall(advisor, { userId: body.userId, reason: body.reason, callerNumber });
   });
 

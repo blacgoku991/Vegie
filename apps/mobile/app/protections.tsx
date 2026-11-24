@@ -33,7 +33,7 @@ export default function Protections() {
 
   return (
     <Screen back title="Appels et messages">
-      <Text color="soft">Activez ces protections une seule fois. Ensuite, Vigie travaille tout seul.</Text>
+      <Text color="soft">Activez ces protections une seule fois. Ensuite, SmartSecure travaille tout seul.</Text>
 
       <View style={{ gap: space.md, marginTop: space.lg }}>
         {android ? (
@@ -41,7 +41,7 @@ export default function Protections() {
             <Feature
               icon="phone"
               title="Filtrer les appels"
-              text="Vigie reconnaît les appels annoncés par votre banque et signale les faux, avant même de décrocher."
+              text="SmartSecure reconnaît les appels annoncés par votre banque et signale les faux, avant même de décrocher."
               enabled={status?.callScreening === "enabled"}
               action={<Button label="Activer" onPress={() => void protection.enableCallScreening().then(() => protection.status().then(setStatus))} />}
             />
@@ -56,7 +56,7 @@ export default function Protections() {
             <Feature
               icon="message"
               title="Surveiller SMS et WhatsApp"
-              text="Vigie vérifie les messages qui contiennent un lien ou une demande d'argent. Les autres ne quittent pas votre téléphone."
+              text="SmartSecure vérifie les messages qui contiennent un lien ou une demande d'argent. Les autres ne quittent pas votre téléphone."
               enabled={status?.notificationListener === "enabled"}
               action={<Button label="Ouvrir le réglage" onPress={() => protection.openMessageAccess()} />}
             />
@@ -70,20 +70,20 @@ export default function Protections() {
               title="Identifier les appels"
               text="Les numéros signalés comme arnaques s'affichent avec un avertissement quand ils vous appellent."
               enabled={status?.callDirectory === "enabled"}
-              steps="Réglages › Apps › Téléphone › Blocage et identification des appels › Vigie"
+              steps="Réglages › Apps › Téléphone › Blocage et identification des appels › SmartSecure"
               action={<Button label="Ouvrir les réglages" onPress={() => void protection.openCallSettings()} />}
             />
             <Feature
               icon="message"
               title="Filtrer les SMS"
               text="Les SMS d'inconnus sont vérifiés : les arnaques sont rangées à part, loin de vos messages."
-              steps="Réglages › Apps › Messages › Expéditeurs inconnus › Vigie"
+              steps="Réglages › Apps › Messages › Expéditeurs inconnus › SmartSecure"
               action={<Button label="Ouvrir les réglages" onPress={() => protection.openMessageAccess()} />}
             />
             <Feature
               icon="share"
               title="Vérifier n'importe quel message"
-              text="Dans WhatsApp, Mail ou Messages, touchez « Partager » puis « Vigie » : la réponse arrive en quelques secondes."
+              text="Dans WhatsApp, Mail ou Messages, touchez « Partager » puis « SmartSecure » : la réponse arrive en quelques secondes."
               enabled
             />
           </>

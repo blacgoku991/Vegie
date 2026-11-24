@@ -82,14 +82,20 @@ object Notifier {
       .setAutoCancel(true)
 
   fun callCertified(ctx: Context, call: Store.ExpectedCall) {
-    val text = "${call.advisorName} (${call.agency}) vous appelle. Vous pouvez décrocher en confiance."
+    val text = "L'appel vient du numéro annoncé par ${call.advisorName} (${call.agency}). Même votre banque ne vous demandera jamais un code, un mot de passe ou un virement : si on vous le demande, raccrochez et rappelez votre banque."
     post(
       ctx,
       CALL_NOTIFICATION_ID,
       base(ctx, CHANNEL_CALLS, GREEN, "✓ Appel certifié · ${call.bankName}", text)
         .setSmallIcon(android.R.drawable.ic_dialog_info)
-        .setContentIntent(deepLink(ctx, "call/certified?id=${call.id}", 1)),
+        .setContentIntent(deepLink(ctx, "call/certified?id=${call.id}&verified=1", 1)),
     )
+  }
+
+  /** Une annonce existe, mais l'appel entrant vient d'un autre numéro : message neutre, jamais de vert. */
+  fun callAnnouncedOtherNumber(ctx: Context, bankName: String) {
+    val text = "Votre banque a prévu un appel, mais pas depuis ce numéro : raccrochez et rappelez votre banque ($bankName)."
+    post(ctx, CALL_NOTIFICATION_ID, base(ctx, CHANNEL_CALLS, ORANGE, "Appel de $bankName ? Numéro différent", text).setContentIntent(deepLink(ctx, "call/check", 7)))
   }
 
   fun callUncertified(ctx: Context, bankName: String, number: String, blocked: Boolean) {
@@ -121,7 +127,11 @@ object Notifier {
   }
 
   fun message(ctx: Context, verdict: String, explanation: String, alertId: String?, app: String) {
-    val title = if (verdict == "scam") "⛔ Arnaque · message $app" else "⚠ Message douteux · $app"
+    val title = when (verdict) {
+      "scam" -> "⛔ Arnaque · message $app"
+      "incomplete" -> "⚠ Vérification incomplète · $app"
+      else -> "⚠ Message douteux · $app"
+    }
     val color = if (verdict == "scam") RED else ORANGE
     post(
       ctx,

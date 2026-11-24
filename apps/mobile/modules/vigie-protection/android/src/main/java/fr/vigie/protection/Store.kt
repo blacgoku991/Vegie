@@ -31,6 +31,11 @@ class Store(context: Context) {
     get() = prefs.getString("expectedCall", null)
     set(v) = prefs.edit().putString("expectedCall", v).apply()
 
+  /** Annonce déjà utilisée par un appel correspondant : elle ne valide plus aucun autre appel, même si l'app la renvoie. */
+  var consumedCallId: String?
+    get() = prefs.getString("consumedCallId", null)
+    set(v) = prefs.edit().putString("consumedCallId", v).apply()
+
   data class BankNumber(val bankId: String, val bankName: String, val partner: Boolean)
 
   data class ExpectedCall(
@@ -71,7 +76,7 @@ class Store(context: Context) {
     return try {
       val o = JSONObject(json)
       val expires = java.time.Instant.parse(o.getString("expiresAt")).toEpochMilli()
-      if (expires < System.currentTimeMillis()) null
+      if (expires < System.currentTimeMillis() || o.getString("id") == consumedCallId) null
       else ExpectedCall(
         id = o.getString("id"),
         callerNumber = o.optString("callerNumber").takeIf { it.isNotBlank() && it != "null" },

@@ -75,6 +75,14 @@ t("le client ajoute sa banque partenaire : lien en attente", async () => {
 t("sans annonce, l'appel n'est pas certifié", async () => {
   const res = (await app.inject({ method: "GET", url: "/v1/me/calls/check", headers: auth() })).json();
   assert.equal(res.certified, false);
+  assert.equal(res.call, null);
+});
+
+t("l'accueil ne déclare pas les messages protégés : le serveur ne connaît que banques et mails", async () => {
+  const home = (await app.inject({ method: "GET", url: "/v1/home", headers: auth() })).json();
+  assert.deepEqual(home.sources, { banks: 1, mails: 0, mailsInError: 0 });
+  assert.equal("messages" in home.sources, false);
+  assert.equal("calls" in home.sources, false);
 });
 
 t("le conseiller confirme l'identité puis annonce l'appel", async () => {
@@ -95,19 +103,64 @@ t("le conseiller confirme l'identité puis annonce l'appel", async () => {
   const call = await app.inject({ method: "POST", url: "/v1/console/calls", headers: { cookie }, payload: { userId, reason: "Point épargne" } });
   assert.equal(call.statusCode, 200);
   assert.equal(call.json().status, "announced");
+  assert.equal(call.json().callerNumber, "+33199007777");
+  const windowMin = (Date.parse(call.json().expiresAt) - Date.parse(call.json().createdAt)) / 60_000;
+  assert.ok(windowMin <= 10 && windowMin > 9, `fenêtre de 10 min maximum, obtenu ${windowMin}`);
 });
 
-t("le client voit l'appel certifié, un autre numéro reste non certifié", async () => {
+t("le client voit l'appel certifié, un autre numéro ou un numéro inconnu reste non certifié", async () => {
   const ok = (await app.inject({ method: "GET", url: "/v1/me/calls/check?number=0199007777", headers: auth() })).json();
   assert.equal(ok.certified, true);
+  assert.equal(ok.match, "number_match");
   assert.equal(ok.call.advisorName, "Paul Test");
+  // L'annonce est consommée par le premier appel concordant : un second check concordant n'est plus certifié.
+  const second = (await app.inject({ method: "GET", url: "/v1/me/calls/check?number=0199007777", headers: auth() })).json();
+  assert.equal(second.certified, false);
   const spoof = (await app.inject({ method: "GET", url: "/v1/me/calls/check?number=0612345678", headers: auth() })).json();
   assert.equal(spoof.certified, false);
+  assert.equal(spoof.match, "number_mismatch");
+  // iPhone / bouton manuel : pas de numéro → on sait qu'un appel était prévu, jamais « certifié ».
+  const blind = (await app.inject({ method: "GET", url: "/v1/me/calls/check", headers: auth() })).json();
+  assert.equal(blind.certified, false);
+  assert.equal(blind.match, "number_unknown");
+  assert.equal(blind.call.id, ok.call.id);
 
   await app.inject({ method: "POST", url: `/v1/me/calls/${ok.call.id}/confirm`, headers: auth(), payload: { confirmed: true } });
   const detail = (await app.inject({ method: "GET", url: `/v1/console/calls/${ok.call.id}`, headers: { cookie } })).json();
   assert.equal(detail.status, "confirmed");
   assert.equal(detail.timeline.length, 3);
+
+  // L'annonce est consommée par la confirmation : le même numéro ne repasse pas en vert.
+  const again = (await app.inject({ method: "GET", url: "/v1/me/calls/check?number=0199007777", headers: auth() })).json();
+  assert.equal(again.certified, false);
+  assert.equal(again.call, null);
+});
+
+t("sans numéro sortant renseigné, le numéro officiel de la banque sert de numéro attendu ; sans aucun numéro, refus", async () => {
+  const email = `sans-numero-${advisorEmail}`;
+  const adv = await pool.query("insert into advisors (bank_id, email, name, agency, outbound_number, password_hash) values ($1, $2, 'Sans Numero', 'Agence B', null, $3) returning id", [
+    bankId,
+    email,
+    await hashPassword("secret-test"),
+  ]);
+  const login = await app.inject({ method: "POST", url: "/v1/console/login", payload: { email, password: "secret-test" } });
+  const other = String(login.headers["set-cookie"]).split(";")[0]!;
+  const userId = (await app.inject({ method: "GET", url: `/v1/console/clients?q=${encodeURIComponent(phone)}`, headers: { cookie: other } })).json()[0].userId;
+
+  const viaBank = await app.inject({ method: "POST", url: "/v1/console/calls", headers: { cookie: other }, payload: { userId, reason: "Point épargne" } });
+  assert.equal(viaBank.statusCode, 200);
+  assert.equal(viaBank.json().callerNumber, "+33199007777", "repli sur le numéro officiel de la banque");
+  await app.inject({ method: "POST", url: `/v1/console/calls/${viaBank.json().id}/end`, headers: { cookie: other } });
+
+  await pool.query("update banks set official_numbers = '{}', official_phone = null where id = $1", [bankId]);
+  const none = await app.inject({ method: "POST", url: "/v1/console/calls", headers: { cookie: other }, payload: { userId, reason: "Point épargne" } });
+  assert.equal(none.statusCode, 400, "pas de numéro attendu → pas d'annonce");
+  const typed = await app.inject({ method: "POST", url: "/v1/console/calls", headers: { cookie: other }, payload: { userId, reason: "Point épargne", callerNumber: "0199007777" } });
+  assert.equal(typed.statusCode, 200);
+  assert.equal(typed.json().callerNumber, "+33199007777");
+  await pool.query("update banks set official_numbers = '{+33199007777}' where id = $1", [bankId]);
+  await pool.query("delete from certified_calls where advisor_id = $1", [adv.rows[0].id]);
+  await pool.query("delete from advisors where id = $1", [adv.rows[0].id]);
 });
 
 t("un faux appel signalé depuis le numéro officiel est rattaché à la banque usurpée", async () => {
@@ -125,6 +178,7 @@ t("analyse d'un SMS partagé : arnaque détectée et enregistrée", async () => 
   });
   assert.equal(res.statusCode, 200);
   assert.equal(res.json().verdict, "scam");
+  assert.equal(typeof res.json().incomplete, "boolean");
   const alert = (await app.inject({ method: "GET", url: `/v1/me/alerts/${res.json().alertId}`, headers: auth() })).json();
   assert.equal(alert.checks.length, 4);
 });

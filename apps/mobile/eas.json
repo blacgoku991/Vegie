@@ -30,7 +30,8 @@
   "submit": {
     "production": {
       "ios": {
-        "appName": "Vigie - Anti-arnaque"
+        "appName": "SmartSecure - Anti-arnaque",
+        "ascAppId": "6838742540"
       }
     }
   }

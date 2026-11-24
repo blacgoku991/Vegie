@@ -3,6 +3,14 @@
 App mobile anti-arnaque pour les seniors français et leurs familles, plus une console web pour les banques.
 Objectif : que l'utilisateur ne se fasse plus arnaquer, **sans rien avoir à faire** une fois l'app configurée.
 
+**Nom commercial : SmartSecure** (famille SmartFixx : SmartRemote, SmartInventory). « Vigie » reste le nom de code
+interne (dépôt, projet Expo `@blsckgolu/vigie`, module natif, cibles iOS). Identifiant iOS/Android définitif :
+`fr.smartfixx.antiarnaque` (`fr.vigie.app` est pris chez Apple). App Store Connect : « SmartSecure - Anti-arnaque »,
+ascAppId `6838742540`. Logo : `apps/mobile/assets/logo/make-icons.mjs` (dégradé #6A4DFF → #B23CF5 → #FF6A3D).
+Builds du 24/11/2026 : Android dev OK (pont Kotlin compilé, ancien identifiant), iOS production OK + envoyé sur
+TestFlight (Swift + 3 extensions compilés). Identifiants Apple gérés par EAS ; session Apple mémorisée sur le PC.
+Les textes « Vigie » restent à aligner dans la console, les SMS aux proches et les notifications serveur.
+
 ## État (24/11/2026)
 
 | Brique | État | Vérifié comment |
@@ -32,11 +40,11 @@ ARCEP réservées à la fiction (01 99 00…, 06 39 98…).
 
 ## Prochaine étape
 
-1. **iOS / TestFlight** : lancer UNE fois en interactif (connexion Apple + code 2FA, créer les 4 profils) :
-   `cd apps/mobile && npx eas-cli build -p ios --profile production --auto-submit`. Ensuite les builds iOS peuvent
-   partir en non interactif d'ici. Le compte Expo a déjà le certificat de distribution (équipe 9642GYNCU9) et la clé
-   App Store Connect `QN3CRFKK2K`. Android : build OK, à tester sur un vrai téléphone Android 10+.
-   Héberger l'API (UE) pour que les builds TestFlight puissent se connecter (aujourd'hui `api.vigie.example`).
+1. **Rebuild EAS** (nouvel identifiant, logo, correctifs Kotlin/Swift de l'audit du 24/11 non compilés) puis tester le
+   filtrage d'appels sur un vrai Android 10+. iOS : identifiants déjà créés (4 profils, certificat équipe 9642GYNCU9,
+   clé App Store Connect `QN3CRFKK2K`), les builds peuvent partir en non interactif :
+   `cd apps/mobile && npx eas-cli build -p ios --profile production --auto-submit --non-interactive`.
+   Mettre le serveur en ligne (UE) : sans lui, l'app TestFlight ne se connecte pas (`api.vigie.example`).
 2. Créer l'app Azure (Microsoft Graph, « comptes de toute organisation + comptes personnels ») et tester Outlook réel.
 3. Brancher l'IA en UE (Vertex AI `europe-west1`, `AI_PROVIDER=vertex`) et mesurer sur un jeu d'arnaques réelles.
 4. Remplacer `api.vigie.example` (Info.plist du filtre SMS, `eas.json`) par le vrai domaine + fichier

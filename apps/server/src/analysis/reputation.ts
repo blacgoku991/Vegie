@@ -69,15 +69,21 @@ async function fetchRegistration(domain: string): Promise<Date | null> {
  * Renvoie un libellé lisible si l'URL est connue comme dangereuse.
  */
 export async function webRisk(url: string): Promise<string | null> {
-  if (!config.WEB_RISK_API_KEY) return null;
+  return (await webRiskCheck(url)).hit;
+}
+
+/** Comme `webRisk`, mais dit si le contrôle a réellement eu lieu (clé absente, réseau ou API en erreur → `checked: false`). */
+export async function webRiskCheck(url: string): Promise<{ hit: string | null; checked: boolean }> {
+  if (!config.WEB_RISK_API_KEY) return { hit: null, checked: false };
   const qs = new URLSearchParams({ uri: url, key: config.WEB_RISK_API_KEY });
   for (const t of ["SOCIAL_ENGINEERING", "MALWARE", "UNWANTED_SOFTWARE"]) qs.append("threatTypes", t);
   try {
     const res = await fetch(`https://webrisk.googleapis.com/v1/uris:search?${qs}`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return { hit: null, checked: false };
     const json = (await res.json()) as { threat?: { threatTypes?: string[] } };
-    return json.threat?.threatTypes?.length ? "liste Google" : null;
+    return { hit: json.threat?.threatTypes?.length ? "liste Google" : null, checked: true };
   } catch {
-    return null;
+    return { hit: null, checked: false };
   }
 }
 

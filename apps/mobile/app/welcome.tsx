@@ -17,10 +17,10 @@ export default function Welcome() {
         </FadeIn>
         <FadeIn delay={120} style={{ gap: space.md, alignItems: "center" }}>
           <Text variant="display" align="center" accessibilityRole="header">
-            Vigie veille{"\n"}sur vous.
+            SmartSecure veille{"\n"}sur vous.
           </Text>
           <Text color="soft" align="center" style={{ maxWidth: 320 }}>
-            Appels, mails, SMS : Vigie repère les arnaques avant qu'elles ne vous atteignent.
+            Appels, mails, SMS : SmartSecure repère les arnaques avant qu'elles ne vous atteignent.
           </Text>
         </FadeIn>
       </View>
