@@ -33,9 +33,43 @@ class Store(context: Context) {
     get() = prefs.getBoolean("contactCallBanner", true)
     set(v) = prefs.edit().putBoolean("contactCallBanner", v).apply()
 
+  /** Position de la carte pendant l'appel : « top », « middle », « low » ; null = automatique (selon l'appli Téléphone). */
+  var overlayPosition: String?
+    get() = prefs.getString("overlayPosition", null)
+    set(v) = prefs.edit().putString("overlayPosition", v).apply()
+
+  /** Annuaire (synchronisation JS ou rafraîchissement natif) : l'heure d'enregistrement est mémorisée avec lui. */
   var directoryJson: String?
     get() = prefs.getString("directory", null)
-    set(v) = prefs.edit().putString("directory", v).apply()
+    set(v) = prefs.edit().putString("directory", v).putLong("directorySyncedAtMs", System.currentTimeMillis()).apply()
+
+  /** Heure (ms epoch) du dernier enregistrement de l'annuaire ; 0 = jamais. */
+  val directorySyncedAtMs: Long
+    get() = prefs.getLong("directorySyncedAtMs", 0L)
+
+  /** Enregistre un annuaire reçu du serveur par le natif (même format que celui poussé par le JS). */
+  fun saveDirectory(directory: JSONObject) {
+    directoryJson = directory.toString()
+  }
+
+  /** Vrai si l'annuaire stocké a plus de 12 h (ou n'a jamais été enregistré). */
+  fun directoryIsStale(): Boolean = System.currentTimeMillis() - directorySyncedAtMs > DIRECTORY_MAX_AGE_MS
+
+  /** Vrai si une réponse du serveur porte une empreinte d'annuaire non vide et différente de celle stockée. */
+  fun hasNewBankNumbersVersion(response: JSONObject?): Boolean {
+    val v = response?.optString("bankNumbersVersion").orEmpty()
+    return v.isNotEmpty() && v != "null" && v != bankNumbersVersion()
+  }
+
+  /** Empreinte des numéros de banque de l'annuaire stocké, null si absente. */
+  fun bankNumbersVersion(): String? {
+    val json = directoryJson ?: return null
+    return try {
+      JSONObject(json).optString("bankNumbersVersion").takeIf { it.isNotEmpty() && it != "null" }
+    } catch (e: Exception) {
+      null
+    }
+  }
 
   var expectedCallJson: String?
     get() = prefs.getString("expectedCall", null)
@@ -119,6 +153,8 @@ class Store(context: Context) {
     }
   }
 }
+
+private const val DIRECTORY_MAX_AGE_MS = 12L * 60 * 60 * 1000
 
 object PhoneUtil {
   /** Normalisation E.164 (France par défaut), identique à `normalizePhone` côté TypeScript. */

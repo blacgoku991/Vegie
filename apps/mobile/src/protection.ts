@@ -23,7 +23,11 @@ export interface ProtectionStatus {
   phoneState: FeatureState;
   /** Android : permission « Contacts » (facultative), pour que le filtrage voie aussi les numéros enregistrés. Absent des anciens modules natifs. */
   contacts?: FeatureState;
+  /** Android : position effective du grand message pendant l'appel. Absent des anciens modules natifs. */
+  overlayPosition?: OverlayPosition;
 }
+
+export type OverlayPosition = "top" | "middle" | "low";
 
 interface NativeModule {
   setSession(apiUrl: string, token: string | null): void;
@@ -34,6 +38,8 @@ interface NativeModule {
   setUnknownCallBanner?(enabled: boolean): void;
   /** Android : même rappel pour les appels venant d'un contact (absent des anciens modules natifs). */
   setContactCallBanner?(enabled: boolean): void;
+  /** Android : position du grand message pendant l'appel (absent des anciens modules natifs). */
+  setOverlayPosition?(position: string): void;
   getStatus(): Promise<ProtectionStatus>;
   requestCallScreening(): Promise<boolean>;
   openNotificationListenerSettings(): void;
@@ -134,6 +140,14 @@ export const protection = {
   setContactCallBanner(enabled: boolean) {
     try {
       Native?.setContactCallBanner?.(enabled);
+    } catch {
+      // Module natif ancien : sans effet.
+    }
+  },
+
+  setOverlayPosition(position: OverlayPosition) {
+    try {
+      Native?.setOverlayPosition?.(position);
     } catch {
       // Module natif ancien : sans effet.
     }

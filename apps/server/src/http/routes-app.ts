@@ -56,6 +56,26 @@ async function announcersFor(userId: string): Promise<string[]> {
   return rows.map((r) => r.name);
 }
 
+/**
+ * Numéros officiels des banques du client + banques annonceuses, et leur empreinte (sha256, 16 hex).
+ * L'empreinte ne dépend ni de l'heure ni des numéros signalés : le téléphone s'en sert pour savoir
+ * s'il doit resynchroniser son annuaire.
+ */
+async function bankNumbersState(userId: string) {
+  const banks = await many<{ id: string; name: string; partner: boolean; official_numbers: string[] }>(
+    `select b.id, b.name, b.partner, b.official_numbers from user_banks ub join banks b on b.id = ub.bank_id where ub.user_id = $1`,
+    [userId],
+  );
+  const announcers = await announcersFor(userId);
+  const bankNumbers = banks.flatMap((b) => b.official_numbers.map((n) => ({ number: n, bankId: b.id, bankName: b.name, partner: b.partner })));
+  const canonical = bankNumbers
+    .map((n) => `${n.bankId}|${n.number}|${n.partner ? 1 : 0}|${n.bankName}`)
+    .sort()
+    .concat("--", [...announcers].sort());
+  const bankNumbersVersion = sha256(canonical.join("\n")).slice(0, 16);
+  return { bankNumbers, announcers, bankNumbersVersion };
+}
+
 async function loadMe(userId: string): Promise<Me> {
   const u = await one<{ id: string; phone: string; first_name: string | null; settings: UserSettings }>(
     "select id, phone, first_name, settings from users where id = $1",
@@ -322,18 +342,16 @@ export async function appRoutes(app: FastifyInstance) {
   /** Annuaire pour le filtrage d'appels hors ligne (Android CallScreeningService, iOS Call Directory). */
   app.get("/me/phone-directory", async (req): Promise<PhoneDirectory> => {
     const userId = await requireUser(req);
-    const banks = await many<{ id: string; name: string; partner: boolean; official_numbers: string[] }>(
-      `select b.id, b.name, b.partner, b.official_numbers from user_banks ub join banks b on b.id = ub.bank_id where ub.user_id = $1`,
-      [userId],
-    );
+    const { bankNumbers, announcers, bankNumbersVersion } = await bankNumbersState(userId);
     const reported = await many<{ number: string; reports: number }>(
       "select number, reports from reported_numbers where reports >= 3 order by reports desc limit 20000",
     );
     return {
       version: new Date().toISOString().slice(0, 13),
-      bankNumbers: banks.flatMap((b) => b.official_numbers.map((n) => ({ number: n, bankId: b.id, bankName: b.name, partner: b.partner }))),
+      bankNumbersVersion,
+      bankNumbers,
       reportedNumbers: reported,
-      announcers: await announcersFor(userId),
+      announcers,
     };
   });
 
@@ -350,13 +368,21 @@ export async function appRoutes(app: FastifyInstance) {
     // on sait seulement qu'un appel était prévu : jamais « certifié ».
     const match: CallMatch = !number ? "number_unknown" : call?.callerNumber && call.callerNumber === number ? "number_match" : "number_mismatch";
     // Premier appel concordant seulement : l'annonce est consommée, un second check concordant n'est plus certifié.
+    // Calculée avant la consommation de l'annonce : une erreur ici ne doit ni la consommer pour rien ni la bloquer.
+    const bankNumbersVersion = await bankNumbersState(userId).then((s) => s.bankNumbersVersion, () => undefined);
     const certified = !!call && match === "number_match" && (await consumeMatch(userId, call.id));
     if (call && !certified && match === "number_unknown") await markSeen(userId, call.id);
     const banks = await many<BankRow>(
       `select b.id, b.slug, b.name, b.partner, b.official_phone from user_banks ub join banks b on b.id = ub.bank_id where ub.user_id = $1`,
       [userId],
     );
-    return { certified, match: call ? (match === "number_match" && !certified ? "number_mismatch" : match) : "number_unknown", call, banks: banks.map(toBank) };
+    return {
+      certified,
+      match: call ? (match === "number_match" && !certified ? "number_mismatch" : match) : "number_unknown",
+      call,
+      banks: banks.map(toBank),
+      bankNumbersVersion,
+    };
   });
 
   /**
@@ -367,9 +393,11 @@ export async function appRoutes(app: FastifyInstance) {
   app.get("/me/calls/expected", async (req) => {
     const userId = await requireUser(req);
     const call = await activeCallFor(userId, { unmatchedOnly: true });
+    const { announcers, bankNumbersVersion } = await bankNumbersState(userId);
     return {
       call: call && { id: call.id, callerNumber: call.callerNumber, bankName: call.bankName, advisorName: call.advisorName, agency: call.agency, expiresAt: call.expiresAt },
-      announcers: await announcersFor(userId),
+      announcers,
+      bankNumbersVersion,
     };
   });
 

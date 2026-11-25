@@ -81,6 +81,29 @@ class OverlayContentTest {
   }
 
   @Test
+  fun announcedOtherNumberIsRedWithCallback() {
+    val c = OverlayContent.announcedOtherNumber("Banque Horizon", canHangup = true)
+    assertEquals(OverlayContent.Tone.RED, c.tone)
+    assertEquals("Appel non certifié", c.title)
+    assertEquals("Banque Horizon a annoncé un appel, mais pas depuis ce numéro.", c.detail)
+    assertTrue(c.showHangup && c.showCallback)
+    assertNull(c.rule)
+    val noHangup = OverlayContent.announcedOtherNumber("B", canHangup = false)
+    assertFalse(noHangup.showHangup)
+    assertEquals("B a annoncé un appel, mais pas depuis ce numéro. Raccrochez, puis rappelez votre banque.", noHangup.detail)
+  }
+
+  @Test
+  fun otherNumberUnknownIsNeutralWithoutButtons() {
+    val c = OverlayContent.otherNumberUnknown("Banque Horizon")
+    assertEquals(OverlayContent.Tone.NEUTRAL, c.tone)
+    assertEquals("Banque Horizon a annoncé un appel", c.title)
+    assertEquals("Mais pas depuis ce numéro. Si on vous dit appeler de sa part, raccrochez.", c.detail)
+    assertFalse(c.showHangup || c.showCallback)
+    assertNull(c.rule)
+  }
+
+  @Test
   fun contactAnnouncedIsNeverGreen() {
     val c = OverlayContent.contactAnnounced("Banque Horizon")
     assertEquals(OverlayContent.Tone.NEUTRAL, c.tone)

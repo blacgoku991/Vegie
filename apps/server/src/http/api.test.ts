@@ -130,6 +130,21 @@ t("le client voit l'appel certifié, un autre numéro ou un numéro inconnu rest
   assert.deepEqual(expected.announcers, ["Banque Test"], "lien certifié + banque partenaire");
   const directory = (await app.inject({ method: "GET", url: "/v1/me/phone-directory", headers: auth() })).json();
   assert.deepEqual(directory.announcers, ["Banque Test"], "même liste que /me/calls/expected, pour le mode hors connexion");
+  // Empreinte de l'annuaire : identique sur les trois routes, stable, sensible aux numéros officiels.
+  const checkV = (await app.inject({ method: "GET", url: "/v1/me/calls/check?number=0612345678", headers: auth() })).json();
+  const version = directory.bankNumbersVersion;
+  assert.match(version, /^[0-9a-f]{16}$/);
+  assert.equal(expected.bankNumbersVersion, version);
+  assert.equal(checkV.bankNumbersVersion, version);
+  const directoryAgain = (await app.inject({ method: "GET", url: "/v1/me/phone-directory", headers: auth() })).json();
+  assert.equal(directoryAgain.bankNumbersVersion, version, "sans modification, l'empreinte ne bouge pas");
+  await pool.query("update banks set official_numbers = official_numbers || '{+33199007788}'::text[] where id = $1", [bankId]);
+  try {
+    const changed = (await app.inject({ method: "GET", url: "/v1/me/phone-directory", headers: auth() })).json();
+    assert.notEqual(changed.bankNumbersVersion, version, "un numéro officiel ajouté change l'empreinte");
+  } finally {
+    await pool.query("update banks set official_numbers = '{+33199007700}' where id = $1", [bankId]);
+  }
   // Annonce ouverte, autre numéro : pas certifié, et l'annonce reste ouverte.
   const other = (await app.inject({ method: "GET", url: "/v1/me/calls/check?number=0612345678", headers: auth() })).json();
   assert.equal(other.certified, false);

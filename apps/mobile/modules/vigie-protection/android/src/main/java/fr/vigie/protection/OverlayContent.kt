@@ -52,6 +52,29 @@ data class OverlayContent(
       showCallback = true,
     )
 
+    /** Numéro public d'une banque partenaire alors qu'une annonce est ouverte pour un autre numéro : rouge. */
+    fun announcedOtherNumber(bankName: String, canHangup: Boolean): OverlayContent = OverlayContent(
+      tone = Tone.RED,
+      title = "Appel non certifié",
+      headline = null,
+      detail = "$bankName a annoncé un appel, mais pas depuis ce numéro." +
+        if (canHangup) "" else " Raccrochez, puis rappelez votre banque.",
+      rule = null,
+      showHangup = canHangup,
+      showCallback = true,
+    )
+
+    /** Numéro inconnu alors qu'une annonce est ouverte pour un autre numéro : bandeau gris, sans bouton. */
+    fun otherNumberUnknown(bankName: String): OverlayContent = OverlayContent(
+      tone = Tone.NEUTRAL,
+      title = "$bankName a annoncé un appel",
+      headline = null,
+      detail = "Mais pas depuis ce numéro. Si on vous dit appeler de sa part, raccrochez.",
+      rule = null,
+      showHangup = false,
+      showCallback = false,
+    )
+
     /**
      * Numéro inconnu alors que le serveur confirme qu'aucune annonce n'est ouverte : petit bandeau gris,
      * ni vert ni rouge (on n'affirme pas que l'appel est une arnaque), sans bouton.

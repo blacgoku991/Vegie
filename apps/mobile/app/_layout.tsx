@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { AppState } from "react-native";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
@@ -34,6 +35,19 @@ function Navigation() {
     }
     return stop;
   }, [status, me]);
+
+  // Retour au premier plan : les numéros officiels des banques ont pu changer pendant que l'app dormait.
+  useEffect(() => {
+    if (status !== "signedIn") return;
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      void api
+        .directory()
+        .then((d) => protection.syncDirectory(d))
+        .catch(() => {});
+    });
+    return () => sub.remove();
+  }, [status]);
 
   useEffect(() => {
     if (status !== "loading") void SplashScreen.hideAsync().catch(() => {});

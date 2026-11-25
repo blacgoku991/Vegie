@@ -4,10 +4,10 @@ import { useFocusEffect } from "expo-router";
 import type { IconName } from "@vigie/shared";
 import { api } from "@/api";
 import { useAuth } from "@/auth";
-import { protection, type ProtectionStatus } from "@/protection";
+import { protection, type OverlayPosition, type ProtectionStatus } from "@/protection";
 import { Button } from "@/ui/Button";
 import { Icon } from "@/ui/Icon";
-import { Card, Screen, ToggleRow, ToneBadge } from "@/ui/primitives";
+import { Card, Screen, Segmented, ToggleRow, ToneBadge } from "@/ui/primitives";
 import { Text } from "@/ui/Text";
 import { space } from "@/ui/theme";
 import { useTheme } from "@/ui/ThemeProvider";
@@ -46,6 +46,11 @@ export default function Protections() {
     if (v && phoneStateOff) protection.requestPhonePermissions();
     protection.setContactCallBanner(v);
     setMe(await api.updateMe({ settings: { contactCallBanner: v } }));
+  };
+
+  const changeOverlayPosition = (p: OverlayPosition) => {
+    protection.setOverlayPosition(p);
+    void protection.status().then(setStatus).catch(() => {});
   };
 
   const contactsOn = status?.contacts === "enabled";
@@ -112,6 +117,24 @@ export default function Protections() {
               steps="Réglages › Apps › SmartSecure › Afficher par-dessus les autres applis"
               action={<Button label="Activer" onPress={() => protection.requestOverlay()} />}
             />
+            {status?.overlay === "enabled" ? (
+              <Card style={{ gap: space.md }}>
+                <Text variant="heading">Position du message</Text>
+                <Segmented<OverlayPosition>
+                  label="Position du message"
+                  options={[
+                    { value: "top", label: "Haut" },
+                    { value: "middle", label: "Milieu" },
+                    { value: "low", label: "Bas" },
+                  ]}
+                  value={status.overlayPosition ?? "middle"}
+                  onChange={changeOverlayPosition}
+                />
+                <Text variant="caption" color="faint">
+                  Si le message cache le nom de l'appelant ou les boutons de l'écran d'appel, changez sa position.
+                </Text>
+              </Card>
+            ) : null}
             <Feature
               icon="message"
               title="Surveiller SMS et WhatsApp"

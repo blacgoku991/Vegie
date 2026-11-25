@@ -93,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     protection.setAutoHangup(false);
     protection.setUnknownCallBanner(true);
     protection.setContactCallBanner(true);
-    await protection.syncDirectory({ version: "", bankNumbers: [], reportedNumbers: [], announcers: [] }).catch(() => {});
+    await protection.syncDirectory({ version: "", bankNumbersVersion: "", bankNumbers: [], reportedNumbers: [], announcers: [] }).catch(() => {});
     protection.setSession(API_URL, null);
     setMe(null);
     setStatus("signedOut");

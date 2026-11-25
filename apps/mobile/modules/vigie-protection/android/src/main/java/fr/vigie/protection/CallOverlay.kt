@@ -71,7 +71,7 @@ object CallOverlay {
     dismissNow()
     val wm = app.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     val view = build(app, content, number)
-    wm.addView(view, params(app))
+    wm.addView(view, params(app, view))
     current = view
     currentWm = wm
     main.postDelayed(autoClose, if (content.tone == OverlayContent.Tone.NEUTRAL) NEUTRAL_AUTO_CLOSE_MS else AUTO_CLOSE_MS)
@@ -94,7 +94,7 @@ object CallOverlay {
   }
 
   @Suppress("DEPRECATION")
-  private fun params(ctx: Context): WindowManager.LayoutParams {
+  private fun params(ctx: Context, view: View): WindowManager.LayoutParams {
     val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
     else WindowManager.LayoutParams.TYPE_PHONE
     return WindowManager.LayoutParams(
@@ -112,8 +112,48 @@ object CallOverlay {
       // Sous le bandeau d'appel entrant (téléphone déverrouillé) et sous le nom de l'appelant (écran d'appel
       // plein écran), au-dessus des boutons Répondre / Refuser : vérifié sur émulateur Android 15.
       gravity = Gravity.TOP
-      y = (ctx.resources.displayMetrics.heightPixels * 0.23f).toInt()
+      y = positionY(ctx, view)
     }
+  }
+
+  /**
+   * Position effective : le réglage de l'utilisateur s'il existe, sinon automatique. L'application Téléphone de Google
+   * (Pixel) supporte 23 % ; les autres (Samsung…) ont un écran d'appel plus haut, la carte se place plus bas.
+   */
+  fun effectivePosition(ctx: Context): String {
+    val chosen = Store(ctx).overlayPosition
+    if (chosen != null && (chosen == "top" || chosen == "middle" || chosen == "low")) return chosen
+    val dialer = try {
+      (ctx.getSystemService(Context.TELECOM_SERVICE) as? android.telecom.TelecomManager)?.defaultDialerPackage
+    } catch (e: Exception) {
+      null
+    }
+    return if (dialer == "com.google.android.dialer") "top" else "middle"
+  }
+
+  /** Haut de la carte, en pixels : fraction de la hauteur d'écran, bornée pour que le bas reste au-dessus de 74 %. */
+  private fun positionY(ctx: Context, view: View): Int {
+    val metrics = ctx.resources.displayMetrics
+    val screenH = metrics.heightPixels
+    val fraction = when (effectivePosition(ctx)) {
+      "low" -> 0.45f
+      "middle" -> 0.34f
+      else -> 0.23f
+    }
+    val minY = (screenH * 0.08f).toInt()
+    val maxBottom = (screenH * 0.74f).toInt()
+    var y = (screenH * fraction).toInt()
+    try {
+      // La vue occupe toute la largeur (marges latérales comprises dans son remplissage) ; hauteur libre sous la carte.
+      view.measure(
+        View.MeasureSpec.makeMeasureSpec(metrics.widthPixels, View.MeasureSpec.EXACTLY),
+        View.MeasureSpec.makeMeasureSpec(screenH, View.MeasureSpec.AT_MOST),
+      )
+      y = minOf(y, maxBottom - view.measuredHeight)
+    } catch (e: Exception) {
+      // Mesure impossible : on garde la position demandée.
+    }
+    return maxOf(y, minY)
   }
 
   private fun dp(ctx: Context, v: Int) = (v * ctx.resources.displayMetrics.density).toInt()

@@ -130,6 +130,8 @@ export interface CallCheckResponse {
   call: CertifiedCall | null;
   /** Banques de l'utilisateur, pour proposer le rappel du numéro officiel. */
   banks: Bank[];
+  /** Empreinte des numéros officiels et banques annonceuses : change quand l'annuaire du téléphone est périmé. */
+  bankNumbersVersion?: string;
 }
 
 export type CallMatch = "number_match" | "number_mismatch" | "number_unknown";
@@ -224,6 +226,8 @@ export interface ScanMessageResponse {
 /** Annuaire téléphonique poussé vers le téléphone (filtrage d'appels hors ligne). */
 export interface PhoneDirectory {
   version: string;
+  /** Empreinte (sha256 tronqué) des numéros officiels et des banques annonceuses, sans les numéros signalés. */
+  bankNumbersVersion: string;
   /** Numéros officiels des banques de l'utilisateur. */
   bankNumbers: Array<{ number: string; bankId: string; bankName: string; partner: boolean }>;
   /** Numéros signalés comme frauduleux par la communauté. */

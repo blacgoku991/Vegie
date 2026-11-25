@@ -11,6 +11,10 @@ object CallSignals {
   @Volatile
   var lastScreenAtMs: Long = 0L
 
+  /** Instant (SystemClock.elapsedRealtime) de la dernière tentative de rechargement d'un annuaire ancien ; -1 = jamais. */
+  @Volatile
+  var lastDirectoryRefreshTryMs: Long = -1L
+
   /** Noms des banques du tableau `announcers` d'une réponse du serveur ou de l'annuaire (vide si absent). */
   fun announcerNames(json: JSONObject?): List<String> {
     val arr = json?.optJSONArray("announcers") ?: return emptyList()

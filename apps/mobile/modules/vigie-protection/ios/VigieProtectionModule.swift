@@ -55,6 +55,7 @@ public class VigieProtectionModule: Module {
     Function("setAutoHangup") { (_: Bool) in }
     Function("setUnknownCallBanner") { (_: Bool) in }
     Function("setContactCallBanner") { (_: Bool) in }
+    Function("setOverlayPosition") { (_: String) in }
     Function("openNotificationListenerSettings") {}
     Function("requestOverlay") {}
     Function("requestContacts") {}

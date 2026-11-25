@@ -58,6 +58,10 @@ class VigieProtectionModule : Module() {
       Store(context).contactCallBanner = enabled
     }
 
+    Function("setOverlayPosition") { position: String ->
+      Store(context).overlayPosition = position.takeIf { it == "top" || it == "middle" || it == "low" }
+    }
+
     AsyncFunction("getStatus") {
       mapOf(
         "callScreening" to callScreeningState(),
@@ -67,6 +71,7 @@ class VigieProtectionModule : Module() {
         "overlay" to overlayState(),
         "phoneState" to phoneStateState(),
         "contacts" to if (Contacts.granted(context)) "enabled" else "disabled",
+        "overlayPosition" to CallOverlay.effectivePosition(context),
       )
     }
 

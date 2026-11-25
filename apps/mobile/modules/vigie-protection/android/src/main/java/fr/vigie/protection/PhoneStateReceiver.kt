@@ -57,15 +57,27 @@ class PhoneStateReceiver : BroadcastReceiver() {
     if (!store.contactCallBanner || store.token == null || store.apiUrl == null || !CallOverlay.canDraw(app)) return
 
     val remote = Api.get(store, "/me/calls/expected", 2500)
-    val content: OverlayContent = when {
-      remote == null -> store.announcers().takeIf { it.isNotEmpty() }?.let { OverlayContent.offlineUnknown(it) }
-      !remote.isNull("call") -> remote.optJSONObject("call")?.optString("bankName")?.takeIf { it.isNotBlank() }?.let { OverlayContent.contactAnnounced(it) }
-      else -> CallSignals.announcerNames(remote).takeIf { it.isNotEmpty() }?.let { OverlayContent.unannounced(it) }
-    } ?: return
+    try {
+      val content: OverlayContent = when {
+        remote == null -> store.announcers().takeIf { it.isNotEmpty() }?.let { OverlayContent.offlineUnknown(it) }
+        !remote.isNull("call") -> remote.optJSONObject("call")?.optString("bankName")?.takeIf { it.isNotBlank() }?.let { OverlayContent.contactAnnounced(it) }
+        else -> CallSignals.announcerNames(remote).takeIf { it.isNotEmpty() }?.let { OverlayContent.unannounced(it) }
+      } ?: return
 
-    // Le filtrage a pu démarrer pendant la requête : sa carte prime.
-    if (screenedRecently()) return
-    CallOverlay.show(app, content, null)
+      // Le filtrage a pu démarrer pendant la requête : sa carte prime.
+      if (screenedRecently()) return
+      CallOverlay.show(app, content, null)
+    } finally {
+      // Après l'affichage (jamais avant) : annuaire rechargé en arrière-plan si la banque l'a changé ou s'il est ancien.
+      // Stockage seulement, aucun changement d'affichage.
+      if (remote != null && (store.hasNewBankNumbersVersion(remote) || store.directoryIsStale())) {
+        try {
+          Api.get(store, "/me/phone-directory", 3000)?.let { store.saveDirectory(it) }
+        } catch (e: Exception) {
+          // Sans effet sur l'appel.
+        }
+      }
+    }
   }
 
   private companion object {
