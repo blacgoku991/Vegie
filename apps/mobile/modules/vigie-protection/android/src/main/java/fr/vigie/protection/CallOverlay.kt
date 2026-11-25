@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit
  */
 object CallOverlay {
   private const val AUTO_CLOSE_MS = 45_000L
+  private const val NEUTRAL_AUTO_CLOSE_MS = 20_000L
   private val main = Handler(Looper.getMainLooper())
   private var current: View? = null
   private var currentWm: WindowManager? = null
@@ -73,7 +74,7 @@ object CallOverlay {
     wm.addView(view, params(app))
     current = view
     currentWm = wm
-    main.postDelayed(autoClose, AUTO_CLOSE_MS)
+    main.postDelayed(autoClose, if (content.tone == OverlayContent.Tone.NEUTRAL) NEUTRAL_AUTO_CLOSE_MS else AUTO_CLOSE_MS)
     true
   } catch (e: Exception) {
     // Permission retirée entre-temps, fenêtre refusée par le système : on retombe sur la notification.
@@ -92,8 +93,8 @@ object CallOverlay {
     currentWm = null
   }
 
+  @Suppress("DEPRECATION")
   private fun params(ctx: Context): WindowManager.LayoutParams {
-    @Suppress("DEPRECATION")
     val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
     else WindowManager.LayoutParams.TYPE_PHONE
     return WindowManager.LayoutParams(
@@ -102,11 +103,16 @@ object CallOverlay {
       type,
       WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
         WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+        // Téléphone verrouillé : l'écran d'appel s'affiche par-dessus le verrouillage, la carte doit le suivre
+        // (sans ce drapeau, Android la cache tant que l'écran est verrouillé).
+        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED,
       PixelFormat.TRANSLUCENT,
     ).apply {
+      // Sous le bandeau d'appel entrant (téléphone déverrouillé) et sous le nom de l'appelant (écran d'appel
+      // plein écran), au-dessus des boutons Répondre / Refuser : vérifié sur émulateur Android 15.
       gravity = Gravity.TOP
-      y = dp(ctx, 120)
+      y = (ctx.resources.displayMetrics.heightPixels * 0.23f).toInt()
     }
   }
 
@@ -124,13 +130,51 @@ object CallOverlay {
     cornerRadius = radiusDp * ctx.resources.displayMetrics.density
   }
 
+  /** Bandeau gris discret (ton NEUTRAL) : une ligne d'en-tête, un détail, aucun bouton. */
+  private fun buildCompact(ctx: Context, c: OverlayContent): View {
+    val card = LinearLayout(ctx).apply {
+      orientation = LinearLayout.VERTICAL
+      background = GradientDrawable().apply {
+        setColor(0xFF1C1C1E.toInt())
+        setStroke(dp(ctx, 1), 0xFF38383A.toInt())
+        cornerRadius = 20f * ctx.resources.displayMetrics.density
+      }
+      setPadding(dp(ctx, 14), dp(ctx, 14), dp(ctx, 14), dp(ctx, 14))
+      setOnClickListener { dismissNow() }
+    }
+    val header = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+    val logo = ImageView(ctx).apply { setImageResource(R.drawable.smartsecure_logo) }
+    header.addView(logo, LinearLayout.LayoutParams(dp(ctx, 20), dp(ctx, 20)))
+    header.addView(label(ctx, c.title, 15f, bold = true).apply { setPadding(dp(ctx, 8), 0, dp(ctx, 8), 0) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+    header.addView(
+      label(ctx, "✕", 16f).apply {
+        contentDescription = "Fermer"
+        gravity = Gravity.CENTER
+        setOnClickListener { dismissNow() }
+      },
+      LinearLayout.LayoutParams(dp(ctx, 28), dp(ctx, 28)),
+    )
+    card.addView(header)
+    c.detail?.let {
+      card.addView(label(ctx, it, 14f).apply {
+        setTextColor(0xFFD1D1D6.toInt())
+        setPadding(0, dp(ctx, 6), 0, 0)
+      })
+    }
+    return FrameLayout(ctx).apply {
+      setPadding(dp(ctx, 14), 0, dp(ctx, 14), 0)
+      addView(card, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+    }
+  }
+
   private fun build(ctx: Context, c: OverlayContent, number: String?): View {
+    if (c.tone == OverlayContent.Tone.NEUTRAL) return buildCompact(ctx, c)
     val bg = if (c.tone == OverlayContent.Tone.GREEN) OverlayContent.GREEN_COLOR else OverlayContent.RED_COLOR
     val card = LinearLayout(ctx).apply {
       orientation = LinearLayout.VERTICAL
       background = round(bg, 28f, ctx)
       setPadding(dp(ctx, 18), dp(ctx, 16), dp(ctx, 18), dp(ctx, 18))
-      elevation = dp(ctx, 12).toFloat()
+      // Pas d'ombre portée : la fenêtre a la taille de la carte, l'ombre y dessinait des coins gris sur fond clair.
       // Toucher hors des boutons : ferme la carte.
       setOnClickListener { dismissNow() }
     }

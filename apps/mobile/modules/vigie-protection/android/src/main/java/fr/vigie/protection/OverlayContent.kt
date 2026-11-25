@@ -13,7 +13,7 @@ data class OverlayContent(
   val showHangup: Boolean,
   val showCallback: Boolean,
 ) {
-  enum class Tone { GREEN, RED }
+  enum class Tone { GREEN, RED, NEUTRAL }
 
   companion object {
     const val RULE = "Même votre conseiller ne vous demandera jamais un code."
@@ -50,6 +50,59 @@ data class OverlayContent(
       rule = null,
       showHangup = canHangup,
       showCallback = true,
+    )
+
+    /**
+     * Numéro inconnu alors que le serveur confirme qu'aucune annonce n'est ouverte : petit bandeau gris,
+     * ni vert ni rouge (on n'affirme pas que l'appel est une arnaque), sans bouton.
+     */
+    fun unannounced(bankNames: List<String>): OverlayContent {
+      val several = bankNames.size > 1
+      return OverlayContent(
+        tone = Tone.NEUTRAL,
+        title = if (several) "Vos banques n'ont annoncé aucun appel" else "${bankNames.firstOrNull() ?: "Votre banque"} n'a annoncé aucun appel",
+        headline = null,
+        detail = if (several) "Si on vous dit appeler de leur part, raccrochez." else "Si on vous dit appeler de sa part, raccrochez.",
+        rule = null,
+        showHangup = false,
+        showCallback = false,
+      )
+    }
+
+    /** Numéro public d'une banque partenaire alors que le serveur est injoignable : rouge, on ne peut rien confirmer. */
+    fun unverifiedBank(bankName: String, canHangup: Boolean): OverlayContent = OverlayContent(
+      tone = Tone.RED,
+      title = "Appel non vérifié",
+      headline = null,
+      detail = "Pas de connexion : SmartSecure ne peut pas vérifier cet appel de $bankName. Raccrochez et rappelez votre banque.",
+      rule = null,
+      showHangup = canHangup,
+      showCallback = true,
+    )
+
+    /** Numéro inconnu et serveur injoignable : bandeau gris, on n'affirme rien. */
+    fun offlineUnknown(bankNames: List<String>): OverlayContent {
+      val who = if (bankNames.size == 1) bankNames[0] else "votre banque"
+      return OverlayContent(
+        tone = Tone.NEUTRAL,
+        title = "Pas de connexion : appel non vérifié",
+        headline = null,
+        detail = "Si on vous dit appeler de $who, raccrochez et rappelez-la.",
+        rule = null,
+        showHangup = false,
+        showCallback = false,
+      )
+    }
+
+    /** Appelant enregistré dans les contacts alors qu'une annonce est ouverte : jamais de vert, le numéro est inconnu du code. */
+    fun contactAnnounced(bankName: String): OverlayContent = OverlayContent(
+      tone = Tone.NEUTRAL,
+      title = "$bankName a annoncé un appel",
+      headline = null,
+      detail = "Ce numéro est dans vos contacts : SmartSecure ne peut pas le vérifier. En cas de doute, raccrochez et rappelez votre banque.",
+      rule = null,
+      showHangup = false,
+      showCallback = false,
     )
 
     /** Numéro signalé par la communauté : rouge, sans « rappeler ma banque » (pas de banque en cause). */

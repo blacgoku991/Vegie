@@ -3,6 +3,10 @@
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
   <!-- Bouton « Raccrocher » sur l'alerte d'appel non certifié. -->
   <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+  <!-- Savoir qu'un appel sonne (sans numéro : READ_CALL_LOG n'est pas demandée), pour les appels de contacts. -->
+  <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+  <!-- Pour qu'Android transmette au filtrage les appels des numéros enregistrés ; seul le numéro entrant est recherché, rien n'est envoyé. -->
+  <uses-permission android:name="android.permission.READ_CONTACTS" />
   <!-- Grand popup par-dessus l'écran d'appel (optionnel : sans elle, simple notification). -->
   <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
@@ -27,6 +31,13 @@
         <action android:name="android.service.notification.NotificationListenerService" />
       </intent-filter>
     </service>
+
+    <!-- Diffusion système : doit être exportée. Sert aux appels venant d'un contact (hors filtrage). -->
+    <receiver android:name="fr.vigie.protection.PhoneStateReceiver" android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.PHONE_STATE" />
+      </intent-filter>
+    </receiver>
 
     <receiver android:name="fr.vigie.protection.CallActionReceiver" android:exported="false" />
   </application>

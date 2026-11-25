@@ -50,6 +50,14 @@ class VigieProtectionModule : Module() {
       Store(context).autoHangup = enabled
     }
 
+    Function("setUnknownCallBanner") { enabled: Boolean ->
+      Store(context).unknownCallBanner = enabled
+    }
+
+    Function("setContactCallBanner") { enabled: Boolean ->
+      Store(context).contactCallBanner = enabled
+    }
+
     AsyncFunction("getStatus") {
       mapOf(
         "callScreening" to callScreeningState(),
@@ -57,6 +65,8 @@ class VigieProtectionModule : Module() {
         "callDirectory" to "unsupported",
         "canEndCall" to canEndCall(),
         "overlay" to overlayState(),
+        "phoneState" to phoneStateState(),
+        "contacts" to if (Contacts.granted(context)) "enabled" else "disabled",
       )
     }
 
@@ -65,6 +75,19 @@ class VigieProtectionModule : Module() {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
         val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         (appContext.currentActivity ?: context).startActivity(intent)
+      }
+    }
+
+    /** Redemande les permissions du groupe « Téléphone » (raccrocher, savoir qu'un appel sonne) depuis l'écran des réglages. */
+    Function("requestPhonePermissions") {
+      appContext.currentActivity?.let { requestEndCallPermission(it) }
+    }
+
+    /** Demande l'accès aux contacts (facultatif) : Android transmet alors au filtrage les appels des numéros enregistrés. */
+    Function("requestContacts") {
+      val activity = appContext.currentActivity
+      if (activity != null && !Contacts.granted(context)) {
+        ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.READ_CONTACTS), permissionRequestCode)
       }
     }
 
@@ -120,6 +143,11 @@ class VigieProtectionModule : Module() {
 
   private fun overlayState(): String = if (CallOverlay.canDraw(context)) "enabled" else "disabled"
 
+  private fun phoneStateGranted(): Boolean =
+    ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+
+  private fun phoneStateState(): String = if (phoneStateGranted()) "enabled" else "disabled"
+
   private fun listenerState(): String =
     if (NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)) "enabled" else "disabled"
 
@@ -127,10 +155,16 @@ class VigieProtectionModule : Module() {
     Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
       ContextCompat.checkSelfPermission(context, Manifest.permission.ANSWER_PHONE_CALLS) == PackageManager.PERMISSION_GRANTED
 
-  /** Permission « Raccrocher » demandée juste après l'activation du filtrage, quand elle a du sens. */
+  /**
+   * Permissions du groupe « Téléphone » demandées ensemble juste après l'activation du filtrage :
+   * « Raccrocher » (ANSWER_PHONE_CALLS) et « état du téléphone » (rappel sur les appels de contacts).
+   */
   private fun requestEndCallPermission(activity: Activity) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && !canEndCall()) {
-      ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.ANSWER_PHONE_CALLS), permissionRequestCode)
+    val missing = ArrayList<String>()
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && !canEndCall()) missing.add(Manifest.permission.ANSWER_PHONE_CALLS)
+    if (!phoneStateGranted()) missing.add(Manifest.permission.READ_PHONE_STATE)
+    if (missing.isNotEmpty()) {
+      ActivityCompat.requestPermissions(activity, missing.toTypedArray(), permissionRequestCode)
     }
   }
 }

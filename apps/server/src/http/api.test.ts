@@ -92,6 +92,9 @@ t("l'accueil ne déclare pas les messages protégés : le serveur ne connaît qu
   assert.deepEqual(home.sources, { banks: 1, mails: 0, mailsInError: 0 });
   assert.equal("messages" in home.sources, false);
   assert.equal("calls" in home.sources, false);
+  // Lien « basic » (pas encore certifié) : la banque n'annonce rien pour ce client.
+  const before = (await app.inject({ method: "GET", url: "/v1/me/calls/expected", headers: auth() })).json();
+  assert.deepEqual(before.announcers, []);
 });
 
 t("le conseiller confirme l'identité puis annonce l'appel", async () => {
@@ -118,6 +121,15 @@ t("le conseiller confirme l'identité puis annonce l'appel", async () => {
 });
 
 t("le client voit l'appel certifié, un autre numéro ou un numéro inconnu reste non certifié", async () => {
+  // Filtrage Android sans annonce mémorisée : l'annonce ouverte est lisible sans la consommer ni la marquer « vue ».
+  const noAuth = await app.inject({ method: "GET", url: "/v1/me/calls/expected" });
+  assert.equal(noAuth.statusCode, 401);
+  const expected = (await app.inject({ method: "GET", url: "/v1/me/calls/expected", headers: auth() })).json();
+  assert.equal(expected.call.callerNumber, "+33199007777");
+  assert.equal(expected.call.reason, undefined, "le motif ne sort que par la vérification du numéro");
+  assert.deepEqual(expected.announcers, ["Banque Test"], "lien certifié + banque partenaire");
+  const directory = (await app.inject({ method: "GET", url: "/v1/me/phone-directory", headers: auth() })).json();
+  assert.deepEqual(directory.announcers, ["Banque Test"], "même liste que /me/calls/expected, pour le mode hors connexion");
   const ok = (await app.inject({ method: "GET", url: "/v1/me/calls/check?number=0199007777", headers: auth() })).json();
   assert.equal(ok.certified, true);
   assert.equal(ok.match, "number_match");
@@ -125,6 +137,9 @@ t("le client voit l'appel certifié, un autre numéro ou un numéro inconnu rest
   // L'annonce est consommée par le premier appel concordant : un second check concordant n'est plus certifié.
   const second = (await app.inject({ method: "GET", url: "/v1/me/calls/check?number=0199007777", headers: auth() })).json();
   assert.equal(second.certified, false);
+  // Une annonce déjà utilisée n'est plus proposée au filtrage.
+  const used = (await app.inject({ method: "GET", url: "/v1/me/calls/expected", headers: auth() })).json();
+  assert.equal(used.call, null);
   const spoof = (await app.inject({ method: "GET", url: "/v1/me/calls/check?number=0612345678", headers: auth() })).json();
   assert.equal(spoof.certified, false);
   assert.equal(spoof.match, "number_mismatch");

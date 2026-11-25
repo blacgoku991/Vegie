@@ -23,6 +23,16 @@ class Store(context: Context) {
     get() = prefs.getBoolean("autoHangup", false)
     set(v) = prefs.edit().putBoolean("autoHangup", v).apply()
 
+  /** Rappel discret sur les appels inconnus quand aucune annonce n'est ouverte (activé par défaut). */
+  var unknownCallBanner: Boolean
+    get() = prefs.getBoolean("unknownCallBanner", true)
+    set(v) = prefs.edit().putBoolean("unknownCallBanner", v).apply()
+
+  /** Même rappel pour les appels venant d'un contact (activé par défaut). */
+  var contactCallBanner: Boolean
+    get() = prefs.getBoolean("contactCallBanner", true)
+    set(v) = prefs.edit().putBoolean("contactCallBanner", v).apply()
+
   var directoryJson: String?
     get() = prefs.getString("directory", null)
     set(v) = prefs.edit().putString("directory", v).apply()
@@ -66,6 +76,16 @@ class Store(context: Context) {
       out[o.getString("number")] = BankNumber(o.getString("bankId"), o.getString("bankName"), o.optBoolean("partner"))
     }
     return out
+  }
+
+  /** Banques partenaires qui annoncent leurs appels à ce client (annuaire synchronisé, valable hors connexion). */
+  fun announcers(): List<String> {
+    val json = directoryJson ?: return emptyList()
+    return try {
+      CallSignals.announcerNames(JSONObject(json))
+    } catch (e: Exception) {
+      emptyList()
+    }
   }
 
   /** Numéros signalés par la communauté → nombre de signalements. */

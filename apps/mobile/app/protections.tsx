@@ -33,6 +33,22 @@ export default function Protections() {
     setMe(await api.updateMe({ settings: { autoHangup: v } }));
   };
 
+  const setUnknownCallBanner = async (v: boolean) => {
+    if (!me) return;
+    protection.setUnknownCallBanner(v);
+    setMe(await api.updateMe({ settings: { unknownCallBanner: v } }));
+  };
+
+  // Sans la permission « Téléphone », Android ne prévient pas l'app qu'un appel sonne : le rappel reste éteint.
+  const phoneStateOff = status?.phoneState === "disabled";
+  const setContactCallBanner = async (v: boolean) => {
+    if (!me) return;
+    if (v && phoneStateOff) protection.requestPhonePermissions();
+    protection.setContactCallBanner(v);
+    setMe(await api.updateMe({ settings: { contactCallBanner: v } }));
+  };
+
+  const contactsOn = status?.contacts === "enabled";
   const android = Platform.OS === "android";
   const ios = Platform.OS === "ios";
 
@@ -50,12 +66,42 @@ export default function Protections() {
               enabled={status?.callScreening === "enabled"}
               action={<Button label="Activer" onPress={() => void protection.enableCallScreening().then(() => protection.status().then(setStatus))} />}
             />
+            {status?.callScreening === "enabled" ? (
+              <Feature
+                icon="phone"
+                title="Vérifier aussi mes contacts"
+                text="Si le numéro de votre banque ou de votre conseiller est enregistré dans vos contacts, Android exige l'accès aux contacts pour laisser SmartSecure vérifier l'appel. SmartSecure regarde seulement si le numéro qui appelle est enregistré. Votre carnet d'adresses ne quitte jamais votre téléphone."
+                enabled={contactsOn}
+                action={<Button label="Activer" onPress={() => protection.requestContacts()} />}
+              />
+            ) : null}
+            {!contactsOn ? (
+              <Text variant="caption" color="faint">
+                Sans l'accès aux contacts, SmartSecure ne peut pas certifier un numéro enregistré dans vos contacts. N'enregistrez pas le numéro de votre banque ni celui de votre conseiller.
+              </Text>
+            ) : null}
             {status?.callScreening === "enabled" && me ? (
               <ToggleRow
                 title="Raccrocher automatiquement"
                 subtitle="Les appels depuis un numéro public de banque partenaire sans annonce vérifiée peuvent être rejetés. Les signalements des utilisateurs déclenchent un avertissement."
                 value={me.settings.autoHangup}
                 onChange={(v) => void setAutoHangup(v)}
+              />
+            ) : null}
+            {status?.callScreening === "enabled" && me ? (
+              <ToggleRow
+                title="Rappel sur les appels inconnus"
+                subtitle="Quand un numéro inconnu appelle, un petit message rappelle que votre banque n'a annoncé aucun appel."
+                value={me.settings.unknownCallBanner ?? true}
+                onChange={(v) => void setUnknownCallBanner(v)}
+              />
+            ) : null}
+            {status?.callScreening === "enabled" && me && !contactsOn ? (
+              <ToggleRow
+                title="Rappel aussi pour mes contacts"
+                subtitle="Android ne dit pas à SmartSecure quel contact appelle. Le rappel s'affiche donc pour tous vos contacts, tant que votre banque n'a annoncé aucun appel."
+                value={(me.settings.contactCallBanner ?? true) && !phoneStateOff}
+                onChange={(v) => void setContactCallBanner(v)}
               />
             ) : null}
             <Feature

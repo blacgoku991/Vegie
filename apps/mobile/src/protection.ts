@@ -19,6 +19,10 @@ export interface ProtectionStatus {
   canEndCall: boolean;
   /** Android : popup par-dessus l'appel (permission « Afficher par-dessus les autres applis »). */
   overlay: FeatureState;
+  /** Android : permission « état du téléphone » (rappel sur les appels de contacts). */
+  phoneState: FeatureState;
+  /** Android : permission « Contacts » (facultative), pour que le filtrage voie aussi les numéros enregistrés. Absent des anciens modules natifs. */
+  contacts?: FeatureState;
 }
 
 interface NativeModule {
@@ -26,12 +30,20 @@ interface NativeModule {
   syncDirectory(json: string): Promise<void>;
   setExpectedCall(json: string | null): void;
   setAutoHangup(enabled: boolean): void;
+  /** Android : rappel discret sur les appels inconnus (absent des anciens modules natifs). */
+  setUnknownCallBanner?(enabled: boolean): void;
+  /** Android : même rappel pour les appels venant d'un contact (absent des anciens modules natifs). */
+  setContactCallBanner?(enabled: boolean): void;
   getStatus(): Promise<ProtectionStatus>;
   requestCallScreening(): Promise<boolean>;
   openNotificationListenerSettings(): void;
   openCallDirectorySettings(): Promise<void>;
   endCall(): Promise<boolean>;
   requestOverlay(): void;
+  /** Android : demande l'accès aux contacts (absent des anciens modules natifs). */
+  requestContacts?(): void;
+  /** Android : redemande les permissions du groupe « Téléphone » (absent des anciens modules natifs). */
+  requestPhonePermissions?(): void;
   /** Retire l'annonce mémorisée seulement si son identifiant est `callId`. */
   clearExpectedCall?(callId: string): void;
   /** iOS : retire une annonce expirée de l'App Group et recharge l'annuaire. */
@@ -40,7 +52,7 @@ interface NativeModule {
 
 const Native = requireOptionalNativeModule<NativeModule>("VigieProtection");
 
-const unsupported: ProtectionStatus = { callScreening: "unsupported", notificationListener: "unsupported", callDirectory: "unsupported", canEndCall: false, overlay: "unsupported" };
+const unsupported: ProtectionStatus = { callScreening: "unsupported", notificationListener: "unsupported", callDirectory: "unsupported", canEndCall: false, overlay: "unsupported", phoneState: "unsupported" };
 
 export const protection = {
   available: !!Native,
@@ -87,8 +99,44 @@ export const protection = {
     if (Platform.OS === "android") Native?.requestOverlay?.();
   },
 
+  /** Android : redemande « raccrocher » et « savoir qu'un appel sonne ». Sans effet sur un ancien module natif. */
+  requestPhonePermissions() {
+    if (Platform.OS !== "android") return;
+    try {
+      Native?.requestPhonePermissions?.();
+    } catch {
+      // Module natif ancien : sans effet.
+    }
+  },
+
+  /** Android : demande l'accès (facultatif) aux contacts. Sans effet sur un ancien module natif. */
+  requestContacts() {
+    if (Platform.OS !== "android") return;
+    try {
+      Native?.requestContacts?.();
+    } catch {
+      // Module natif ancien : sans effet.
+    }
+  },
+
   setAutoHangup(enabled: boolean) {
     Native?.setAutoHangup(enabled);
+  },
+
+  setUnknownCallBanner(enabled: boolean) {
+    try {
+      Native?.setUnknownCallBanner?.(enabled);
+    } catch {
+      // Module natif ancien : sans effet.
+    }
+  },
+
+  setContactCallBanner(enabled: boolean) {
+    try {
+      Native?.setContactCallBanner?.(enabled);
+    } catch {
+      // Module natif ancien : sans effet.
+    }
   },
 
   async status(): Promise<ProtectionStatus> {

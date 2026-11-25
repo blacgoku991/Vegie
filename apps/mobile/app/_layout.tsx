@@ -27,7 +27,11 @@ function Navigation() {
       .directory()
       .then((d) => protection.syncDirectory(d))
       .catch(() => {});
-    if (me) protection.setAutoHangup(me.settings.autoHangup);
+    if (me) {
+      protection.setAutoHangup(me.settings.autoHangup);
+      protection.setUnknownCallBanner(me.settings.unknownCallBanner ?? true);
+      protection.setContactCallBanner(me.settings.contactCallBanner ?? true);
+    }
     return stop;
   }, [status, me]);
 

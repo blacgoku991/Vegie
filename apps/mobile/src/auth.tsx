@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { AppState } from "react-native";
 import type { Me } from "@vigie/shared";
 import { API_URL, api, setApiToken } from "./api";
 import { callState } from "./callState";
@@ -57,6 +58,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
+  // Démarrage hors ligne (téléphone en veille, réseau absent) : la session est gardée mais le profil n'a pas pu
+  // être chargé. On réessaie à chaque retour au premier plan, sinon les réglages liés au profil restent masqués.
+  useEffect(() => {
+    if (status !== "signedIn" || me) return;
+    let cancelled = false;
+    const load = () => {
+      api.me().then((user) => { if (!cancelled) setMe(user); }).catch(() => {});
+    };
+    load();
+    const sub = AppState.addEventListener("change", (state) => { if (state === "active") load(); });
+    return () => { cancelled = true; sub.remove(); };
+  }, [status, me]);
+
   const signIn = useCallback(async (token: string, user: Me) => {
     await secure.set(TOKEN_KEY, token);
     await secure.set("smartsecure.owner", user.id);
@@ -77,7 +91,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     callState.set(null);
     protection.setExpectedCall(null);
     protection.setAutoHangup(false);
-    await protection.syncDirectory({ version: "", bankNumbers: [], reportedNumbers: [] }).catch(() => {});
+    protection.setUnknownCallBanner(true);
+    protection.setContactCallBanner(true);
+    await protection.syncDirectory({ version: "", bankNumbers: [], reportedNumbers: [], announcers: [] }).catch(() => {});
     protection.setSession(API_URL, null);
     setMe(null);
     setStatus("signedOut");

@@ -46,6 +46,16 @@ interface BankRow {
 }
 const toBank = (b: BankRow): Bank => ({ id: b.id, slug: b.slug, name: b.name, partner: b.partner, officialPhone: b.official_phone });
 
+/** Banques qui annoncent leurs appels à ce client : lien certifié ET banque partenaire, triées par nom. */
+async function announcersFor(userId: string): Promise<string[]> {
+  const rows = await many<{ name: string }>(
+    `select b.name from user_banks ub join banks b on b.id = ub.bank_id
+     where ub.user_id = $1 and ub.status = 'certified' and b.partner = true order by b.name`,
+    [userId],
+  );
+  return rows.map((r) => r.name);
+}
+
 async function loadMe(userId: string): Promise<Me> {
   const u = await one<{ id: string; phone: string; first_name: string | null; settings: UserSettings }>(
     "select id, phone, first_name, settings from users where id = $1",
@@ -114,7 +124,7 @@ export async function appRoutes(app: FastifyInstance) {
     const body = z
       .object({
         firstName: z.string().trim().min(1).max(40).optional(),
-        settings: z.object({ autoHangup: z.boolean().optional(), notifyContactOnScam: z.boolean().optional() }).optional(),
+        settings: z.object({ autoHangup: z.boolean().optional(), unknownCallBanner: z.boolean().optional(), contactCallBanner: z.boolean().optional(), notifyContactOnScam: z.boolean().optional() }).optional(),
       })
       .parse(req.body);
     if (body.firstName) await pool.query("update users set first_name = $2 where id = $1", [userId, body.firstName]);
@@ -323,6 +333,7 @@ export async function appRoutes(app: FastifyInstance) {
       version: new Date().toISOString().slice(0, 13),
       bankNumbers: banks.flatMap((b) => b.official_numbers.map((n) => ({ number: n, bankId: b.id, bankName: b.name, partner: b.partner }))),
       reportedNumbers: reported,
+      announcers: await announcersFor(userId),
     };
   });
 
@@ -343,6 +354,20 @@ export async function appRoutes(app: FastifyInstance) {
       [userId],
     );
     return { certified, match: call ? (match === "number_match" && !certified ? "number_mismatch" : match) : "number_unknown", call, banks: banks.map(toBank) };
+  });
+
+  /**
+   * Filtrage d'appels Android quand le téléphone ne connaît pas l'annonce (notification non reçue, app pas rouverte) :
+   * annonce ouverte, sans effet de bord (ni « vue », ni consommée). Le numéro entrant n'est pas transmis : le téléphone
+   * compare lui-même, puis fait valider le numéro concordant par /me/calls/check. Le motif n'est pas renvoyé ici.
+   */
+  app.get("/me/calls/expected", async (req) => {
+    const userId = await requireUser(req);
+    const call = await activeCallFor(userId, { unmatchedOnly: true });
+    return {
+      call: call && { id: call.id, callerNumber: call.callerNumber, bankName: call.bankName, advisorName: call.advisorName, agency: call.agency, expiresAt: call.expiresAt },
+      announcers: await announcersFor(userId),
+    };
   });
 
   app.post<{ Params: { id: string } }>("/me/calls/:id/confirm", async (req) => {

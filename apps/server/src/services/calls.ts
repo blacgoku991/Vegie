@@ -55,9 +55,11 @@ export function toCall(r: CallRow): CertifiedCall {
 }
 
 /** Annonce encore valable pour ce client (la plus récente) : ni confirmée, ni refusée, ni terminée, ni expirée. */
-export async function activeCallFor(userId: string): Promise<CertifiedCall | null> {
+export async function activeCallFor(userId: string, opts: { unmatchedOnly?: boolean } = {}): Promise<CertifiedCall | null> {
+  // `unmatchedOnly` : filtrage d'appels Android, une annonce déjà consommée par un appel concordant n'est plus proposée.
   const row = await one<CallRow>(
     `${callSelect} where c.user_id = $1 and c.status in ('announced', 'seen') and c.expires_at > now()
+     ${opts.unmatchedOnly ? "and c.matched_at is null" : ""}
      order by c.created_at desc limit 1`,
     [userId],
   );

@@ -70,6 +70,10 @@ export interface Me {
 export interface UserSettings {
   /** Android : raccrocher automatiquement les appels non certifiés se présentant comme une banque. */
   autoHangup: boolean;
+  /** Android : petit rappel sur les appels inconnus quand la banque n'a annoncé aucun appel (activé quand absent). */
+  unknownCallBanner?: boolean;
+  /** Android : même rappel pour les appels venant d'un contact (activé quand absent). */
+  contactCallBanner?: boolean;
   /** Prévenir automatiquement le proche quand une arnaque est détectée. */
   notifyContactOnScam: boolean;
 }
@@ -224,6 +228,8 @@ export interface PhoneDirectory {
   bankNumbers: Array<{ number: string; bankId: string; bankName: string; partner: boolean }>;
   /** Numéros signalés comme frauduleux par la communauté. */
   reportedNumbers: Array<{ number: string; reports: number }>;
+  /** Banques partenaires qui annoncent leurs appels à ce client (utile hors connexion). */
+  announcers: string[];
 }
 
 // ───────────────────────────── Console banque ─────────────────────────────

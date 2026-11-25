@@ -22,7 +22,7 @@ Les interfaces et les SMS utilisent SmartSecure. Le schéma historique `vigie://
 | Connexion boîtes mail : Outlook (Graph), IMAP (Orange/Free/SFR/La Poste/Bouygues), Gmail (flag) | ✅ code, ⚠️ non testé contre de vrais comptes | nécessite app Azure + vrais identifiants |
 | `apps/scanner` : navigateur isolé (Playwright) | ✅ | tests SSRF + capture réelle ; sites externes bloqués par le réseau du bac à sable |
 | `apps/mobile` : tous les écrans | ✅ | typecheck + export web + captures iPhone (Playwright) |
-| Module natif Android (Kotlin) : filtrage d'appels, SMS/WhatsApp, raccrocher | ✅ compile (build EAS réussi) | build EAS `development` Android OK le 24/11 (pont Expo compris) ; reste à tester sur un vrai téléphone |
+| Module natif Android (Kotlin) : filtrage d'appels, SMS/WhatsApp, raccrocher | ✅ filtrage d'appels testé sur émulateur Android 15 (25/11) | popups vert/rouge, rejet automatique, raccrocher, téléphone verrouillé, app arrêtée, usage unique ; reste un vrai téléphone (Samsung) et la surveillance SMS/WhatsApp |
 | Extensions iOS (Swift) : filtre SMS, annuaire d'appels, Partager | ✅ build iOS antérieur | Les dernières modifications Swift et Kotlin attendent un nouveau build et un essai sur téléphone |
 | `apps/console` : Next.js (connexion, appeler, appel en cours, stats, faux appels) | ✅ | `next build` + parcours Playwright |
 
@@ -88,13 +88,23 @@ npm run typecheck && npm test       # tout le dépôt
 cd apps/mobile && npx expo export -p web   # aperçu web de l'app (dev uniquement)
 ```
 
+Émulateur Android (SDK d'Android Studio déjà installé, AVD `SmartSecure_Test`, Android 15) : simule de vrais appels entrants.
+
+```bash
+emulator -avd SmartSecure_Test                 # dans %LOCALAPPDATA%\Android\Sdk\emulator
+adb install -r <apk du build EAS development>  # puis ouvrir l'app sur le serveur Metro du PC :
+adb shell am start -a android.intent.action.VIEW -d "exp+vigie://expo-development-client/?url=http%3A%2F%2F<IP du PC>%3A8081"
+adb emu gsm call +33199001234                  # appel entrant (ligne directe de démo) ; +33199000000 = numéro public
+adb emu gsm cancel +33199001234
+```
+
 ## Décisions (et pourquoi)
 
 - **Appel certifié = annonce + vérification**, pas d'interception audio. Le conseiller annonce l'appel depuis la console ;
   le serveur pousse « Appel annoncé » (nom, agence ; le motif n'est visible que dans l'app). Tout appel « de la banque »
   sans annonce = **non certifié**. Point clé : les escrocs usurpent le *vrai* numéro de la banque, donc un appel depuis un
   numéro officiel **sans annonce** est justement le cas suspect (et il est remonté à la banque comme « numéro usurpé »).
-- **Android** : `CallScreeningService` compare le numéro entrant à la ligne annoncée, avec une vérification serveur courte et à usage unique. Aucune certification hors connexion ou si la vérification opérateur échoue. Le rejet automatique est une option pour les numéros publics des banques partenaires. Les signalements communautaires déclenchent un avertissement. Le service ne lit pas les contacts.
+- **Android** : `CallScreeningService` compare le numéro entrant à la ligne annoncée, avec une vérification serveur courte et à usage unique. Aucune certification hors connexion ou si la vérification opérateur échoue. Le rejet automatique est une option pour les numéros publics des banques partenaires. Les signalements communautaires déclenchent un avertissement. Le service ne lit ni noms ni carnet : avec la permission Contacts (facultative), il demande seulement si le numéro entrant est enregistré. Si le téléphone ne connaît pas l'annonce (notification non reçue, app pas rouverte), le service la demande à `GET /v1/me/calls/expected` (sans effet de bord, annonces déjà utilisées exclues) : le numéro entrant n'est jamais envoyé pour cette question, seulement à `/me/calls/check` quand il concorde. Conséquence à déclarer (RGPD) : le serveur voit qu'un appel hors contacts est arrivé, pas de qui. La même réponse porte `announcers` (banques partenaires reliées en « certifié ») : numéro inconnu + aucune annonce ouverte → petit bandeau gris « <Banque> n'a annoncé aucun appel » (réglage `unknownCallBanner`, activé par défaut ; rien hors ligne). **Contacts : Android ne transmet pas au filtrage les appels des numéros enregistrés** (vérifié sur émulateur). Secours sans lire les contacts, vérifié le 25/11 : `PhoneStateReceiver` (diffusion `PHONE_STATE`, permission `READ_PHONE_STATE`, sans numéro) repère une sonnerie que le filtrage n'a pas vue → c'est un contact → bandeau gris « n'a annoncé aucun appel » ou « a annoncé un appel, numéro non vérifiable » (réglage `contactCallBanner`), jamais de vert. Le même récepteur ferme la carte à la fin de l'appel. Permission `READ_CONTACTS` acceptée par le propriétaire le 25/11 (facultative, carte « Vérifier aussi mes contacts » ; `Contacts.isContact` = simple recherche locale du numéro entrant) : vérifié sur émulateur Android 15 : avec la permission, Android transmet les appels de contacts au filtrage (numéro public enregistré → rouge, ligne annoncée enregistrée → vert, proche → rien, même pendant une annonce) ; Google Play exige une déclaration pour cette permission (obligatoire le 27/01/2027 pour les apps ciblant l'API 37+). **Hors connexion** (vérifié) : numéro public de banque partenaire → carte rouge « Appel non vérifié » ; numéro inconnu ou contact → bandeau gris « Pas de connexion : appel non vérifié » (banques lues dans l'annuaire synchronisé, champ `announcers`) ; jamais de vert sans réponse du serveur. Appel masqué ou numéro illisible = numéro inconnu (vérifié avec un numéro illisible ; l'émulateur ne sait pas masquer un numéro). Comptes qui avaient déjà activé le filtrage : l'interrupteur « Rappel aussi pour mes contacts » redemande la permission Téléphone (accordée sans dialogue, même groupe que « raccrocher »). Hors numéro de banque, l'appel sonne tout de suite et les requêtes attendent jusqu'à 3 s (réseaux lents).
 - **iOS** : pas d'accès aux appels en temps réel → bouton « On m'appelle de ma banque » + notification « time-sensitive »
   + annuaire CallKit (numéros signalés étiquetés, numéros de banque étiquetés « vérifiez dans SmartSecure »).
   Live Caller ID Lookup (iOS 18) permettrait le temps réel mais exige un serveur PIR + validation Apple : plus tard.
@@ -131,15 +141,15 @@ cd apps/mobile && npx expo export -p web   # aperçu web de l'app (dev uniquemen
   (5 essais / 15 min, réponse identique si inconnu/expiré) → lien `certified` direct. Annonce d'appel : ligne directe obligatoire, jamais un numéro officiel public (`caller_number_required`).
 - **Console v2** : barre latérale par rôle (Tableau de bord, Clients, Appels, Invitations, Signalements, Activité ; Administration : Équipe, Agences, Numéros officiels, Journal d'activité). Fiche client `/clients/[id]` (Aperçu, Appels, Signalements, Notes, Journal) servie par `/console/customers/*` (`routes-clients.ts`) : 404 hors banque, téléphone masqué pour un conseiller, dissocier réservé au responsable (le lien repasse en « basic »). RGPD : la banque ne voit que le lien, ses appels, ses signalements et ses notes (`client_notes`), jamais alertes, proches ni autres banques.
 - **Journal d'activité** : table `audit_events` (migration 005), alimentée par `services/audit.ts` dans les routes (connexion, annonce, invitation, lien, notes, équipe, réglages) ; métadonnées non sensibles (jamais de téléphone ni de code). `user_banks.referent_id` = conseiller référent. Invitation annulable (`cancelled_at`), annonce d'appel déplacée sur `/announce`.
-- **Pendant l'appel, app fermée** (24/11, codé, NON compilé ni testé sur téléphone) : Android = grand popup par-dessus l'écran
-  d'appel (`CallOverlay.kt`, permission « Afficher par-dessus les autres applis », sinon notification) ; vert seulement si le
-  serveur confirme la ligne annoncée. iPhone = étiquette temporaire dans l'annuaire d'appels (« ✓ Certifié <Banque> · HH:mm »,
-  `expected.json` dans l'App Group, extension de notification + tâche d'arrière-plan + push de fin, y compris à l'échéance).
-  Apple interdit tout popup sur un appel normal ; le propriétaire a refusé l'appel VoIP dans l'app. Maquettes :
+- **Pendant l'appel, app fermée** : Android = grand popup par-dessus l'écran d'appel (`CallOverlay.kt`), **vérifié sur émulateur
+  Android 15 le 25/11** : vert seulement si le serveur confirme la ligne annoncée, rouge sur un numéro public de banque sans annonce,
+  y compris téléphone verrouillé (`FLAG_SHOW_WHEN_LOCKED`, sinon Android cache la carte) et app arrêtée de force. Carte placée à 23 % de
+  la hauteur (sous le bandeau d'appel et le nom de l'appelant, au-dessus de Répondre/Refuser), fermée à chaque nouvel appel. Bandeau gris des appels inconnus vérifié de même (affiché, verrouillé, réglage coupé). Sur
+  Android 15, le rôle de filtrage accorde tout seul « Afficher par-dessus les autres applis ». Non couvert : fermeture de la carte à
+  la fin de l'appel (elle reste 45 s), rendu Samsung. iPhone (codé, NON testé) = étiquette temporaire dans l'annuaire d'appels
+  (« ✓ Certifié <Banque> · HH:mm », libellé confirmé par le propriétaire le 25/11, « Annoncé par » écarté ; `expected.json` dans l'App Group, extension de notification + tâche d'arrière-plan + push de fin,
+  y compris à l'échéance). Apple interdit tout popup sur un appel normal ; le propriétaire a refusé l'appel VoIP dans l'app. Maquettes :
   `docs/design/maquettes/appel-*.png`. À vérifier sur vrais appareils : mise à jour iOS quand l'app est fermée de force.
-- **Liaison client = lien d’activation** : la banque crée le client (prénom, portable, référence) dans la console (`POST /v1/console/customers`) et le serveur envoie un SMS avec `smartsecure://activate?token=` (forme web `PUBLIC_APP_URL/activate`). Jeton 32 octets haché, 72 h, usage unique, consommé atomiquement ; `POST /v1/auth/activate` crée ou réutilise le compte, relie la banque en `certified` et ouvre la session, sans code SMS (le lien reçu prouve le numéro) UNIQUEMENT si aucun compte n’existe pour ce numéro ; sinon réponse `requiresLogin`, jeton non consommé, et `POST /v1/me/banks/activate` (connecté, même numéro exact) relie la banque. 400 identique si jeton inconnu/expiré/annulé/utilisé, 20 échecs/h par IP, 30 créations/jour par conseiller.
-- L’API ne renvoie le lien que si `EXPOSE_ACTIVATION_LINK=true` (développement ; le serveur refuse de démarrer si le drapeau est vrai en production) ; sinon seul le SMS le porte. La console l’affiche avec un QR et un bouton Copier. Renvoyer = nouveau jeton (l’ancien meurt), annuler possible ; journal d’audit sans numéro ni jeton.
-- Le code à 6 chiffres (invitation) reste disponible en secours (`/invites`), sans changement. Pas de liaison automatique par import de numéros.
 - **Numéros officiels des banques** : jamais inventés ; fournis par les banques partenaires (table `banks`).
 
 ## Sécurité & RGPD

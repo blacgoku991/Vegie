@@ -39,7 +39,7 @@ const config: ExpoConfig = {
     // ANSWER_PHONE_CALLS : bouton « Raccrocher » pendant un appel non certifié.
     // SYSTEM_ALERT_WINDOW : grand popup par-dessus l'écran d'appel (optionnel, accordé par l'utilisateur).
     permissions: ["ANSWER_PHONE_CALLS", "POST_NOTIFICATIONS", "SYSTEM_ALERT_WINDOW"],
-    blockedPermissions: ["android.permission.READ_CONTACTS", "android.permission.READ_CALL_LOG", "android.permission.READ_SMS"],
+    blockedPermissions: ["android.permission.READ_CALL_LOG", "android.permission.READ_SMS"],
   },
   web: { bundler: "metro", output: "single", favicon: "./assets/icon.png" },
   plugins: [

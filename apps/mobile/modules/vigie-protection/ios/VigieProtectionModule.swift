@@ -53,8 +53,12 @@ public class VigieProtectionModule: Module {
 
     // Spécifiques Android : sans effet sur iOS.
     Function("setAutoHangup") { (_: Bool) in }
+    Function("setUnknownCallBanner") { (_: Bool) in }
+    Function("setContactCallBanner") { (_: Bool) in }
     Function("openNotificationListenerSettings") {}
     Function("requestOverlay") {}
+    Function("requestContacts") {}
+    Function("requestPhonePermissions") {}
     AsyncFunction("requestCallScreening") { () -> Bool in false }
     AsyncFunction("endCall") { () -> Bool in false }
 
@@ -72,6 +76,8 @@ public class VigieProtectionModule: Module {
           "callDirectory": state,
           "canEndCall": false,
           "overlay": "unsupported",
+          "phoneState": "unsupported",
+          "contacts": "unsupported",
         ])
       }
     }
