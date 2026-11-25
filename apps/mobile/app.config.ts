@@ -1,4 +1,5 @@
 import type { ExpoConfig } from "expo/config";
+import { withAndroidManifest, type ConfigPlugin } from "expo/config-plugins";
 
 // Identifiant définitif (Apple et Play Store), indépendant du nom commercial ; même préfixe que les autres outils
 // SmartFixx (fr.smartfixx.smartremote). Les extensions Swift reprennent ces valeurs en dur.
@@ -73,4 +74,13 @@ const config: ExpoConfig = {
   },
 };
 
-export default config;
+// APK d'essai autonome branché sur le serveur du PC (profil EAS « local ») : HTTP en clair autorisé.
+// Jamais en production : les autres profils n'activent pas ALLOW_CLEARTEXT et parlent en HTTPS.
+const withCleartext: ConfigPlugin = (c) =>
+  withAndroidManifest(c, (m) => {
+    const app = m.modResults.manifest.application?.[0];
+    if (app) app.$["android:usesCleartextTraffic"] = "true";
+    return m;
+  });
+
+export default process.env.ALLOW_CLEARTEXT === "1" ? withCleartext(config) : config;

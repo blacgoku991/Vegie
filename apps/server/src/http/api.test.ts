@@ -130,6 +130,11 @@ t("le client voit l'appel certifié, un autre numéro ou un numéro inconnu rest
   assert.deepEqual(expected.announcers, ["Banque Test"], "lien certifié + banque partenaire");
   const directory = (await app.inject({ method: "GET", url: "/v1/me/phone-directory", headers: auth() })).json();
   assert.deepEqual(directory.announcers, ["Banque Test"], "même liste que /me/calls/expected, pour le mode hors connexion");
+  // Annonce ouverte, autre numéro : pas certifié, et l'annonce reste ouverte.
+  const other = (await app.inject({ method: "GET", url: "/v1/me/calls/check?number=0612345678", headers: auth() })).json();
+  assert.equal(other.certified, false);
+  assert.equal(other.match, "number_mismatch");
+  assert.equal(other.call.callerNumber, "+33199007777");
   const ok = (await app.inject({ method: "GET", url: "/v1/me/calls/check?number=0199007777", headers: auth() })).json();
   assert.equal(ok.certified, true);
   assert.equal(ok.match, "number_match");
@@ -142,7 +147,7 @@ t("le client voit l'appel certifié, un autre numéro ou un numéro inconnu rest
   assert.equal(used.call, null);
   const spoof = (await app.inject({ method: "GET", url: "/v1/me/calls/check?number=0612345678", headers: auth() })).json();
   assert.equal(spoof.certified, false);
-  assert.equal(spoof.match, "number_mismatch");
+  assert.equal(spoof.call, null, "annonce déjà utilisée : pour un numéro entrant, plus aucune annonce en attente");
   // iPhone / bouton manuel : pas de numéro → on sait qu'un appel était prévu, jamais « certifié ».
   const blind = (await app.inject({ method: "GET", url: "/v1/me/calls/check", headers: auth() })).json();
   assert.equal(blind.certified, false);

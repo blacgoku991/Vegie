@@ -341,8 +341,11 @@ export async function appRoutes(app: FastifyInstance) {
   /** Bouton « On m'appelle de ma banque » et vérification depuis le filtrage d'appels Android. */
   app.get<{ Querystring: { number?: string } }>("/me/calls/check", async (req): Promise<CallCheckResponse> => {
     const userId = await requireUser(req);
-    const call = await activeCallFor(userId);
     const number = req.query.number ? normalizePhone(req.query.number) : null;
+    // Avec un numéro entrant (filtrage Android), une annonce déjà consommée par l'appel certifié ne compte plus :
+    // sinon, jusqu'à son échéance, un appel du numéro public passerait pour « annoncé depuis un autre numéro »
+    // (simple notification) au lieu d'« aucun appel annoncé » (carte rouge). Sans numéro (bouton manuel), elle reste visible.
+    const call = await activeCallFor(userId, { unmatchedOnly: !!number });
     // Une annonce ne valide que l'appel venant du numéro annoncé. Sans numéro (iPhone, bouton manuel),
     // on sait seulement qu'un appel était prévu : jamais « certifié ».
     const match: CallMatch = !number ? "number_unknown" : call?.callerNumber && call.callerNumber === number ? "number_match" : "number_mismatch";
